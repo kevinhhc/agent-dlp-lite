@@ -1,0 +1,7 @@
+# Add this entry to the rules array of a full policy pack.
+- id: COMPANY-INTERNAL
+  kind: custom
+  pattern: '\bINTERNAL-[0-9]{6}\b'
+  action: deny
+  enabled: true
+  events: [UserPromptSubmit, PreToolUse]

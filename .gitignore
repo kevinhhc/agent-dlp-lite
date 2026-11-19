@@ -1,0 +1,15 @@
+/target/
+*.agent-dlp-backup-*
+*.tmp
+/local/
+__pycache__/
+
+/policy-pack.yaml
+/shared-pack.yaml
+/imported-pack.yaml
+*.jsonl
+.env
+.env.*
+*.pem
+*.p12
+*.pfx

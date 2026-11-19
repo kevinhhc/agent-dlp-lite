@@ -1,0 +1,47 @@
+# Manual build only. No GitHub Release, package publication, or repository writes.
+name: Build candidate binaries
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, target: aarch64-apple-darwin, suffix: '', flags: '' }
+          - { os: macos-15, target: x86_64-apple-darwin, suffix: '', flags: '' }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, suffix: '.exe', flags: '-C target-feature=+crt-static' }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, suffix: '', flags: '' }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, suffix: '', flags: '' }
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: ${{ matrix.flags }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package binary and checksum
+        shell: python
+        run: |
+          import hashlib, pathlib, shutil, tarfile
+          root = pathlib.Path('candidate')
+          root.mkdir()
+          name = 'agent-dlp${{ matrix.suffix }}'
+          shutil.copyfile('target/${{ matrix.target }}/release/' + name, root / name)
+          if not name.endswith('.exe'): (root / name).chmod(0o755)
+          for file in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_EN.md']: shutil.copyfile(file, root / file)
+          digest = hashlib.sha256((root / name).read_bytes()).hexdigest()
+          (root / 'SHA256SUMS').write_text(digest + '  ' + name + '\n')
+          with tarfile.open('agent-dlp-${{ matrix.target }}.tar.gz', 'w:gz') as archive:
+              archive.add(root, arcname='agent-dlp-lite')
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-dlp-${{ matrix.target }}
+          path: agent-dlp-*.tar.gz

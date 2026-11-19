@@ -1,0 +1,46 @@
+# Portable policy: identical decisions on both adapters. No project auto-discovery.
+schema_version: 1
+name: default-local-protection
+# A recognized script that cannot be inspected is denied by default.
+inspection_failure: deny
+limits:
+  max_event_bytes: 262144
+  max_script_bytes: 131072
+  max_total_script_bytes: 524288
+  max_scripts: 16
+  max_depth: 4
+rules:
+  - id: SECRET-PRIVATE-KEY
+    kind: secret
+    pattern: '-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+    action: deny
+  - id: SECRET-AWS-ACCESS
+    kind: secret
+    pattern: '(?-u:\b)(?:AKIA|ASIA)[A-Z0-9]{16}(?-u:\b)'
+    action: deny
+  - id: SECRET-GITHUB
+    kind: secret
+    pattern: '(?-u:\b)(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{30,})(?-u:\b)'
+    action: deny
+  - id: SECRET-ASSIGNMENT
+    kind: secret
+    pattern: '(?i)(?-u:\b)(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[=:]\s*["\x27]?[A-Za-z0-9_./+\-]{12,}'
+    action: deny
+  - id: PII-EMAIL
+    kind: pii
+    pattern: '(?-u:\b)[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}(?-u:\b)'
+    action: warn
+  - id: PII-CN-MOBILE
+    kind: pii
+    pattern: '(?-u:\b)1[3-9][0-9]{9}(?-u:\b)'
+    action: warn
+  - id: FILE-SENSITIVE
+    kind: sensitive_file
+    pattern: '(?i)(?:^|[/\\\s"\x27=@(])(?:\.env(?:\.[^/\\\s"\x27]+)?|credentials(?:\.json)?|id_rsa|id_ed25519|[^/\\\s"\x27]*\.(?:pem|p12|pfx))(?:$|[/\\\s"\x27),;])'
+    action: warn
+flows:
+  - id: FLOW-SENSITIVE-NETWORK
+    # Conservative source/sink co-occurrence, not a proof of dataflow.
+    source: '(?i)(?:\.env(?-u:\b)|credentials(?:\.json)?|id_rsa|id_ed25519|\.pem(?-u:\b)|process\.env|os\.environ|\$(?:AWS_SECRET_ACCESS_KEY|API_KEY|TOKEN))'
+    sink: '(?i)(?:(?-u:\b)curl(?-u:\b)|(?-u:\b)wget(?-u:\b)|(?-u:\b)requests\.(?:post|put|patch|get|request)(?-u:\b)|(?-u:\b)https?\.(?:request|get)(?-u:\b)|(?-u:\b)fetch\s*\(|(?-u:\b)axios(?-u:\b)|(?-u:\b)urllib(?-u:\b)|(?-u:\b)socket(?-u:\b)|(?-u:\b)scp(?-u:\b)|(?-u:\b)rsync(?-u:\b))'
+    action: deny

@@ -1,0 +1,8 @@
+{
+  "checked_date": "2026-11-19",
+  "tool": "cargo-audit 0.23.0",
+  "database_url": "https://github.com/RustSec/advisory-db",
+  "database_commit": "472a4c9a785030434f15d7da84964d60fbe789ab",
+  "database_last_updated": "2026-11-18T10:14:42+01:00",
+  "mode": "reuse freshly fetched database with --no-fetch; no advisory ignores; deny unmaintained"
+}
