@@ -6,14 +6,18 @@ use std::{
 };
 
 fn options() -> OpenOptions {
-    let mut o = OpenOptions::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
+        let mut o = OpenOptions::new();
         o.mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+        o
     }
-    o
+    #[cfg(not(unix))]
+    {
+        OpenOptions::new()
+    }
 }
 
 pub fn read_text(path: &Path, limit: usize) -> Result<String, String> {
