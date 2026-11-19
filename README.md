@@ -25,7 +25,7 @@
 
 ## 预编译候选版下载
 
-打开[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)，选择标注 **v0.2.0** 且成功的运行，在页面底部的 **Artifacts** 区域下载对应平台。核对包内 artifact-manifest.json 的版本与目标。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
+打开 [v0.2.0 五平台下载](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44503897249)，在页面底部的 **Artifacts** 区域下载对应平台；五个目标均已构建成功。后续版本见[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)。核对包内 artifact-manifest.json 的版本与目标。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
 
 提供 Windows x64、macOS Apple Silicon/Intel、Linux x64/ARM64（musl）五种目标。解压下载文件及其中的平台压缩包，先阅读 `START_HERE.txt`，再执行自测。包内有单二进制、默认策略、安装脚本、文档和 SHA-256 校验值，运行无需安装开发环境。候选文件未签名/公证；各平台实际构建状态以工作流结果为准。
 

@@ -2,7 +2,7 @@
 
 ## 环境
 
-最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、外部网络服务或管理员权限。交互确认需要默认浏览器；Linux 图形桌面需要系统提供 xdg-open。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) 按版本提供五种候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。下载时确认工作流版本与包内 artifact-manifest.json 一致，选择成功的 v0.2.0 构建。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
+最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、外部网络服务或管理员权限。交互确认需要默认浏览器；Linux 图形桌面需要系统提供 xdg-open。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[v0.2.0 下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44503897249) 已提供五种构建成功的候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。下载时确认工作流版本与包内 artifact-manifest.json 一致，选择成功的 v0.2.0 构建。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
 
 Linux musl 目标减少 glibc 兼容问题。macOS 候选版没有开发者签名/公证；发行前还要验证最低操作系统版本、签名和下载隔离行为。Windows 10/11 是否可运行须在对应机器验收，不能只依据编译目标保证。
 
