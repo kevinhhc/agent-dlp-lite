@@ -2,7 +2,7 @@
 
 纯本地、无后台服务的 Agent DLP。Rust 单二进制，通过 Hook 检查 Prompt、工具参数和常见脚本，在宿主支持的执行前事件上返回阻断决策。运行不需要 Rust、Python、Node.js、Docker、数据库或 API Key，不发起网络请求，无遥测。
 
-**状态：0.1.0 本地开发候选版，尚未公开发布。** Codex 与腾讯 WorkBuddy 使用相同引擎和 Policy Pack。自动化协议测试通过不代表某个桌面版本已实际执行 Hook；两个桌面端的端到端验收仍须完成。详细状态见 [兼容性](docs/compatibility.md) 和 [验证记录](docs/validation.md)。
+**状态：0.1.0 预编译候选版已提供下载，当前用于私有测试。** Codex 与腾讯 WorkBuddy 使用相同引擎和 Policy Pack。自动化协议测试通过不代表某个桌面版本已实际执行 Hook；两个桌面端的端到端验收仍须完成。详细状态见 [兼容性](docs/compatibility.md) 和 [验证记录](docs/validation.md)。
 
 [English](README_EN.md) · [安装](docs/installation.md) · [识别规则](docs/detection-rules.md) · [策略](docs/security-policies.md) · [脚本检查](docs/script-inspection.md) · [隐私与边界](docs/privacy-security.md)
 
@@ -18,43 +18,37 @@
 
 ## 预编译候选版下载
 
-在 [候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) 中打开最新成功的运行，在 Artifacts 区域选择对应平台的下载包。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
+五个平台的预编译包已构建成功。打开 [0.1.0 已验证的下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257)，在页面底部的 **Artifacts** 区域选择对应平台。后续构建见 [候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
 
 提供 Windows x64、macOS Apple Silicon/Intel、Linux x64/ARM64（musl）五种目标。解压下载文件及其中的平台压缩包，先阅读 `START_HERE.txt`，再执行自测。包内有单二进制、默认策略、安装脚本、文档和 SHA-256 校验值，运行无需安装开发环境。候选文件未签名/公证；各平台实际构建状态以工作流结果为准。
 
-## 本地快速开始
+## 用户快速开始
 
-最终用户使用预编译可执行文件。当前尚未有正式下载地址；开发者先从源码构建（Rust 1.100+）：
+下载并解压对应平台的文件，在解压后的 `agent-dlp-lite` 目录打开终端。包内已包含可执行文件和 `policy-pack.yaml`，无需安装 Rust、Python 或 Node.js。
 
-```sh
-cargo build --release --locked
-./target/release/agent-dlp self-test
-./target/release/agent-dlp init --output policy-pack.yaml
-./target/release/agent-dlp --policy policy-pack.yaml rules validate
-./target/release/agent-dlp --policy policy-pack.yaml scan --file tests/fixtures/clean.json
-./target/release/agent-dlp --policy policy-pack.yaml policy test --file tests/fixtures/upload.json
-```
-
-最后一条应输出 `action: deny`，退出码为 **2**；只扫描 JSON，不执行其中命令，不读取真实 `.env` 内容，也不连接示例网址。测试数据全部为合成数据。Windows 使用 `target\release\agent-dlp.exe`。
-
-安装本地二进制到指定目录：
+macOS / Linux：
 
 ```sh
-sh scripts/install.sh --binary target/release/agent-dlp \
-  --sha256 "$(shasum -a 256 target/release/agent-dlp | cut -d ' ' -f 1)" \
-  --prefix "$PWD/local/bin"
-./local/bin/agent-dlp self-test
+./agent-dlp self-test
+./agent-dlp --policy policy-pack.yaml policy validate
 ```
 
-这里用本机编译结果的校验值验证复制流程。未来下载发行文件时，应使用来自可信发行渠道的 `SHA256SUMS`，不能把下载文件自算的哈希当作来源证明。Windows 离线安装方式见 [安装说明](docs/installation.md)。
+Windows PowerShell：
+
+```powershell
+.\agent-dlp.exe self-test
+.\agent-dlp.exe --policy policy-pack.yaml policy validate
+```
+
+两条命令均应成功退出。接着阅读包内 `START_HERE.txt` 和 [安装说明](docs/installation.md)，把可执行文件放到稳定目录并加入 PATH，再按下节配置 Hook。未加入 PATH 时，使用可执行文件的完整路径调用。
 
 ## 接入 Codex 与 WorkBuddy
 
-先把二进制放到稳定位置；移动或删除二进制会使 Hook 失效。初始化一份放在可信目录中的策略，生成配置预览：
+先把二进制放到稳定位置；移动或删除二进制会使 Hook 失效。将包内的 `policy-pack.yaml` 保存到可信目录，生成配置预览：
 
 ```sh
-./local/bin/agent-dlp --policy policy-pack.yaml integration --agent codex
-./local/bin/agent-dlp --policy policy-pack.yaml integration --agent workbuddy
+agent-dlp --policy policy-pack.yaml integration --agent codex
+agent-dlp --policy policy-pack.yaml integration --agent workbuddy
 ```
 
 输出 JSON 中使用绝对二进制路径、绝对策略路径。默认注册 `PreToolUse` 和 `UserPromptSubmit`，不注册事后阻断。
@@ -63,10 +57,10 @@ sh scripts/install.sh --binary target/release/agent-dlp \
 
 ```sh
 # Codex 用户级位置；CODEX_HOME 自定义时使用对应目录。
-./local/bin/agent-dlp --policy policy-pack.yaml install --agent codex --settings "$HOME/.codex/hooks.json"
+agent-dlp --policy policy-pack.yaml install --agent codex --settings "$HOME/.codex/hooks.json"
 
 # WorkBuddy：明确传入该桌面版本实际加载的 settings.json。
-./local/bin/agent-dlp --policy policy-pack.yaml install --agent workbuddy --settings /absolute/path/to/workbuddy/settings.json
+agent-dlp --policy policy-pack.yaml install --agent workbuddy --settings /absolute/path/to/workbuddy/settings.json
 ```
 
 第二条的路径需要替换。WorkBuddy/CodeBuddy 品牌下不同产品的配置位置可能不同；不能直接把 CodeBuddy 的 `~/.codebuddy/settings.json` 当作 WorkBuddy 桌面路径。程序不会猜测或自动修改这些目录。配置合并保留其他字段和其他 Hook，已有文件先备份；不支持 JSONC。重启/重新加载 Agent 后，按 [桌面验收步骤](docs/compatibility.md) 验证，注册数量不代表保护已生效。
@@ -109,6 +103,32 @@ Hook 只能处理宿主交付的事件。Prompt Hook 未必早于宿主的上传
 已识别脚本读取失败、越出工作目录、超限或部分动态模式会产生 `INSPECTION-INCOMPLETE`，默认拒绝。输入/配置错误在 Hook 模式退出 2，是否阻断取决于宿主。宿主超时、禁用或绕过 Hook 时，本程序无法强制执行安全策略。不要将其描述为绝对不可绕过的系统边界。
 
 性能目标：普通 Hook P50 ≤10 ms、P95 ≤30 ms、P99 ≤50 ms；小脚本 P95 ≤100 ms；RSS ≤30 MB。目标不等于所有平台保证。实际本机数据见 [验证记录](docs/validation.md)。无常驻进程，无持久扫描缓存，每次重新读取脚本，避免旧缓存复用。
+
+## 开发者：从源码构建
+
+参与开发或自行编译时，需要 Rust 1.100+。以下命令在源码目录中执行：
+
+```sh
+cargo build --release --locked
+./target/release/agent-dlp self-test
+./target/release/agent-dlp init --output policy-pack.yaml
+./target/release/agent-dlp --policy policy-pack.yaml rules validate
+./target/release/agent-dlp --policy policy-pack.yaml scan --file tests/fixtures/clean.json
+./target/release/agent-dlp --policy policy-pack.yaml policy test --file tests/fixtures/upload.json
+```
+
+最后一条应输出 `action: deny`，退出码为 **2**；只扫描 JSON，不执行其中命令，不读取真实 `.env` 内容，也不连接示例网址。测试数据全部为合成数据。Windows 使用 `target\release\agent-dlp.exe`。
+
+安装本地二进制到指定目录：
+
+```sh
+sh scripts/install.sh --binary target/release/agent-dlp \
+  --sha256 "$(shasum -a 256 target/release/agent-dlp | cut -d ' ' -f 1)" \
+  --prefix "$PWD/local/bin"
+./local/bin/agent-dlp self-test
+```
+
+这里用本机编译结果的校验值验证复制流程。未来下载发行文件时，应使用来自可信发行渠道的 `SHA256SUMS`，不能把下载文件自算的哈希当作来源证明。Windows 离线安装方式见 [安装说明](docs/installation.md)。
 
 ## 开发和质量检查
 

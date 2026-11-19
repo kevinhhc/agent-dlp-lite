@@ -2,7 +2,7 @@
 
 An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API key, database, or Python/Node runtime is required to run the binary. The detector does not make network requests.
 
-**0.1.0 local development candidate; not publicly released.** Codex and Tencent WorkBuddy share one engine and portable YAML policy. Automated protocol tests are available; actual desktop interception has not been verified on either product. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md). [中文说明](README.md).
+**0.1.0 precompiled candidates are available for private testing.** Codex and Tencent WorkBuddy share one engine and portable YAML policy. Automated protocol tests are available; actual desktop interception has not been verified on either product. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md). [中文说明](README.md).
 
 ## Features
 
@@ -14,30 +14,33 @@ An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API 
 
 ## Download native candidates
 
-Open the latest successful [candidate build](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) and choose your platform under Artifacts. The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
+All five targets have been built successfully. Open the [verified 0.1.0 download run](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257) and choose your platform under **Artifacts** near the bottom of the page. Later builds are listed in the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml). The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
 
 Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Extract the download and its platform archive, read `START_HERE.txt`, and run the included self-test. Packages include the native executable, default policy, installers, documentation and SHA-256 checksums. No language runtime is required. Candidates are unsigned; workflow results establish the actual availability of each target.
 
-## Build and try locally
+## User quick start
 
-End users will use native binaries; Rust 1.100+ is needed only to build from source. No official download URL exists yet.
+Download and extract your platform package, then open a terminal in the extracted `agent-dlp-lite` directory. The executable and `policy-pack.yaml` are included. No Rust, Python or Node.js installation is required.
+
+macOS / Linux:
 
 ```sh
-cargo build --release --locked
-./target/release/agent-dlp self-test
-./target/release/agent-dlp init --output policy-pack.yaml
-./target/release/agent-dlp --policy policy-pack.yaml policy validate
-./target/release/agent-dlp scan --file tests/fixtures/clean.json
-./target/release/agent-dlp policy test --file tests/fixtures/upload.json
+./agent-dlp self-test
+./agent-dlp --policy policy-pack.yaml policy validate
 ```
 
-The final command intentionally exits **2** with a deny report. It does not execute the command in the JSON, read a real `.env`, or contact the example URL. Windows uses `target\release\agent-dlp.exe`.
+Windows PowerShell:
 
-Install a local binary with `scripts/install.sh --binary PATH --sha256 EXPECTED_HASH --prefix DIRECTORY`, or `scripts/install.ps1 -BinaryPath PATH -Sha256 EXPECTED_HASH -InstallDir DIRECTORY` on Windows. No remote installer or runtime download is used. Obtain hashes from a trusted release manifest when releases become available. See [installation](docs/installation.md).
+```powershell
+.\agent-dlp.exe self-test
+.\agent-dlp.exe --policy policy-pack.yaml policy validate
+```
+
+Both commands should exit successfully. Read `START_HERE.txt` and the [installation guide](docs/installation.md), put the executable in a permanent location and add its directory to PATH before configuring hooks below. Use its full path when it is not on PATH.
 
 ## Configure hooks
 
-Keep the binary in a permanent location and put the policy in a trusted directory. Preview:
+Keep the binary in a permanent location and copy the supplied policy-pack.yaml into a trusted directory. Preview:
 
 ```sh
 agent-dlp --policy policy-pack.yaml integration --agent codex
@@ -86,5 +89,22 @@ python3 scripts/benchmark.py target/release/agent-dlp --samples 200
 ```
 
 CI definitions cover Windows/macOS/Linux tests and dependency auditing. A manual build workflow prepares five binary targets and checksums, with read-only repository permissions and no release publication. See [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions) for actual remote run results. Python is for developer benchmarks only.
+
+## Developers: build from source
+
+Contributing or compiling from source requires Rust 1.100+. Run these commands in the source checkout:
+
+```sh
+cargo build --release --locked
+./target/release/agent-dlp self-test
+./target/release/agent-dlp init --output policy-pack.yaml
+./target/release/agent-dlp --policy policy-pack.yaml policy validate
+./target/release/agent-dlp scan --file tests/fixtures/clean.json
+./target/release/agent-dlp policy test --file tests/fixtures/upload.json
+```
+
+The final command intentionally exits **2** with a deny report. It does not execute the command in the JSON, read a real `.env`, or contact the example URL. Windows uses `target\release\agent-dlp.exe`.
+
+Install a local binary with `scripts/install.sh --binary PATH --sha256 EXPECTED_HASH --prefix DIRECTORY`, or `scripts/install.ps1 -BinaryPath PATH -Sha256 EXPECTED_HASH -InstallDir DIRECTORY` on Windows. No remote installer or runtime download is used. Obtain hashes from a trusted release manifest when releases become available. See [installation](docs/installation.md).
 
 Licensed under [Apache-2.0](LICENSE). See [contributing](CONTRIBUTING.md) and [security reporting](SECURITY.md).

@@ -2,7 +2,7 @@
 
 ## 环境
 
-最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、网络服务或管理员权限。源码构建需要 Rust 1.100+；Python 仅用于开发基准。当前交付含本机 macOS Intel 候选二进制，其他目标由手动工作流准备：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。其他平台未在本机实际执行。
+最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、网络服务或管理员权限。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[已验证的 0.1.0 下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257) 已提供五种候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。Windows、macOS 和 Linux 已通过 GitHub CI；五种目标已构建成功。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
 
 Linux musl 目标减少 glibc 兼容问题。macOS 候选版没有开发者签名/公证；发行前还要验证最低操作系统版本、签名和下载隔离行为。Windows 10/11 是否可运行须在对应机器验收，不能只依据编译目标保证。
 
