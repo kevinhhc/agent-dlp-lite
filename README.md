@@ -8,7 +8,7 @@
 
 ## 预编译下载
 
-打开 [v0.2.2 五平台下载](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44522674609)，在 Artifacts 下载对应平台；五个目标已构建成功。后续构建见[候选工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)。核对包内 artifact-manifest.json 的版本、目标和源码提交。私有仓库需要登录有访问权限的账号；产物保留 90 天。
+打开 [v0.2.2 五平台下载](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44524516049)，在 Artifacts 下载对应平台；五个目标已构建成功。后续构建见[候选工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)。核对包内 artifact-manifest.json 的版本、目标和源码提交。私有仓库需要登录有访问权限的账号；产物保留 90 天。
 
 提供 Windows x64、macOS Apple Silicon/Intel、Linux x64/ARM64 musl 五种目标。包内有二进制、默认策略、安装脚本、文档和完整许可证。候选版未完成开发者签名/公证；macOS 首次运行步骤见[安装说明](docs/installation.md)。
 
