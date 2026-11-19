@@ -12,6 +12,12 @@ An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API 
 - Conservative source/sink co-occurrence detection of **potential** exfiltration; not full taint analysis.
 - Optional redacted JSONL audit; backup and non-destructive hook configuration merging.
 
+## Download native candidates
+
+Open the latest successful [candidate build](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) and choose your platform under Artifacts. The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
+
+Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Extract the download and its platform archive, read `START_HERE.txt`, and run the included self-test. Packages include the native executable, default policy, installers, documentation and SHA-256 checksums. No language runtime is required. Candidates are unsigned; workflow results establish the actual availability of each target.
+
 ## Build and try locally
 
 End users will use native binaries; Rust 1.100+ is needed only to build from source. No official download URL exists yet.

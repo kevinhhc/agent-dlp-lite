@@ -16,6 +16,12 @@
 - YAML 策略包校验、测试、导出、导入，两种适配器共用决策。
 - 可选脱敏 JSONL 审计；安装前备份，卸载只移除本工具标记的 Hook。
 
+## 预编译候选版下载
+
+在 [候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) 中打开最新成功的运行，在 Artifacts 区域选择对应平台的下载包。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
+
+提供 Windows x64、macOS Apple Silicon/Intel、Linux x64/ARM64（musl）五种目标。解压下载文件及其中的平台压缩包，先阅读 `START_HERE.txt`，再执行自测。包内有单二进制、默认策略、安装脚本、文档和 SHA-256 校验值，运行无需安装开发环境。候选文件未签名/公证；各平台实际构建状态以工作流结果为准。
+
 ## 本地快速开始
 
 最终用户使用预编译可执行文件。当前尚未有正式下载地址；开发者先从源码构建（Rust 1.100+）：

@@ -33,11 +33,17 @@ RSS 为该组普通/小脚本子进程中的峰值，不是最大输入和最大
 
 报告：[dependency-audit.json](dependency-audit.json)，公告库版本记录：[provenance](dependency-audit-provenance.json)。工具 cargo-audit 0.23.0；使用 2026-11-19 获取、最后更新于 2026-11-18 的 RustSec 公告库，提交 `472a4c9a785030434f15d7da84964d60fbe789ab`。已知公告检查不代表不存在尚未披露的缺陷，也不替代桌面运行验收。
 
+## GitHub CI
+
+[跨平台 CI 已通过](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44482125249)，对应提交 `530c992e5fef0caedb267687a483f25bc8a2d5f9`。Windows、macOS、Linux 的格式检查、Clippy、测试、release 构建、自测与进程级基准，以及依赖审计均成功。已修复 Windows 文件选项的条件编译警告和测试调用 cmd.exe 时的参数转义问题。不同系统会跳过不适用的 Unix 专用测试。
+
+GitHub 托管运行器的验证不替代最终用户操作系统和真实桌面 Agent 的验收。预编译目标的独立构建结果见候选构建工作流。
+
 ## 尚未验收
 
 - Codex 和 WorkBuddy 真实桌面版本的 Hook 加载、执行前阻断、错误/超时处理；[验收步骤](compatibility.md) 已提供。
 - WorkBuddy 桌面实际配置路径及版本支持范围；不会用 CodeBuddy 文档替代桌面证据。
-- Windows、Linux、macOS ARM64 的实际运行与离线安装；PowerShell 安装脚本尚未在本机执行。
+- 最终用户操作系统上的安装验证；PowerShell 安装脚本尚需独立验收。
 - GitHub Actions：工作流已配置，远程运行结果见仓库 Actions；多平台候选产物仍需实际生成和验收。
 - macOS 开发者签名/公证、各平台最低系统版本测试、公开发布渠道与安全报告渠道。
 

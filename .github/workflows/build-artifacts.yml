@@ -1,6 +1,12 @@
-# Manual build only. No GitHub Release, package publication, or repository writes.
+# Build private downloadable candidates; never publish a GitHub Release.
 name: Build candidate binaries
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-artifacts.yml
+      - scripts/package-candidate.py
 permissions:
   contents: read
 jobs:
@@ -17,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTFLAGS: ${{ matrix.flags }}
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
     steps:
       - uses: actions/checkout@v7
         with:
@@ -27,21 +35,14 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Package binary and checksum
-        shell: python
-        run: |
-          import hashlib, pathlib, shutil, tarfile
-          root = pathlib.Path('candidate')
-          root.mkdir()
-          name = 'agent-dlp${{ matrix.suffix }}'
-          shutil.copyfile('target/${{ matrix.target }}/release/' + name, root / name)
-          if not name.endswith('.exe'): (root / name).chmod(0o755)
-          for file in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_EN.md']: shutil.copyfile(file, root / file)
-          digest = hashlib.sha256((root / name).read_bytes()).hexdigest()
-          (root / 'SHA256SUMS').write_text(digest + '  ' + name + '\n')
-          with tarfile.open('agent-dlp-${{ matrix.target }}.tar.gz', 'w:gz') as archive:
-              archive.add(root, arcname='agent-dlp-lite')
+      - name: Smoke-test native binary
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: cargo run --release --locked --target ${{ matrix.target }} -- self-test
+      - name: Package binary, policy, documentation and checksum
+        run: python scripts/package-candidate.py --binary target/${{ matrix.target }}/release/agent-dlp${{ matrix.suffix }} --target ${{ matrix.target }} --output dist
       - uses: actions/upload-artifact@v7
         with:
-          name: agent-dlp-${{ matrix.target }}
-          path: agent-dlp-*.tar.gz
+          name: agent-dlp-lite-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 90
