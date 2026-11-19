@@ -256,8 +256,12 @@ fn generated_hook_runs_through_host_shell() {
         .unwrap();
     #[cfg(windows)]
     let mut shell = {
+        use std::os::windows::process::CommandExt;
         let mut command = Command::new("cmd.exe");
-        command.args(["/D", "/S", "/C", line]);
+        // cmd uses shell syntax rather than CRT argument escaping.
+        command
+            .args(["/D", "/S", "/C"])
+            .raw_arg(format!("\"{line}\""));
         command
     };
     #[cfg(not(windows))]
