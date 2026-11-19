@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 fn test_policy() -> String {
-    DEFAULT_POLICY.replace("rules:\n", "rules:\n  - id: TEST-CONFIRM\n    kind: custom\n    pattern: DLP_SYNTHETIC_MARKER\n    action: confirm\n")
+    DEFAULT_POLICY.replace("\r\n", "\n").replace("rules:\n", "rules:\n  - id: TEST-CONFIRM\n    kind: custom\n    pattern: DLP_SYNTHETIC_MARKER\n    action: confirm\n")
 }
 struct Client {
     child: Child,

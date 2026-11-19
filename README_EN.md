@@ -8,7 +8,7 @@ Local agent DLP in one Rust executable. No Python/Node runtime, Docker, database
 
 ## Download and run
 
-Open the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml), choose a successful **v0.2.2** run and download your platform under Artifacts. Private repository access is required; artifacts expire after 90 days. Verify version, target and source commit in artifact-manifest.json.
+Open the successful [v0.2.2 five-platform build](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44522674609) and download your platform under Artifacts. Future builds appear in the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml). Private repository access is required; artifacts expire after 90 days. Verify version, target and source commit in artifact-manifest.json.
 
 Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Packages contain the binary, policy, installers, documentation, checksums and complete license notices. Candidates are unsigned/unnotarized; see the macOS steps in the installation guide.
 
