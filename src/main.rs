@@ -1,6 +1,7 @@
 use agent_dlp_lite::{
-    engine,
+    confirmation, engine,
     event::Event,
+    history,
     integration::{self, Agent},
     policy::{Action, CompiledPack, DEFAULT_POLICY},
     storage,
@@ -23,6 +24,9 @@ struct Cli {
     /// Explicit, trusted policy file. Otherwise use embedded defaults.
     #[arg(long, global = true)]
     policy: Option<PathBuf>,
+    /// Bounded local alert history (latest 100 decisions).
+    #[arg(long, global = true)]
+    history_file: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -39,10 +43,13 @@ enum Command {
         agent: Agent,
         #[arg(long)]
         audit: Option<PathBuf>,
+        /// Enable the local browser confirmation UI (requires a 90-second host hook timeout).
+        #[arg(long)]
+        interactive_confirmation: bool,
         #[arg(long, hide = true)]
         managed_by: Option<String>,
     },
-    /// Emit redacted report; exit 2 means deny.
+    /// Emit redacted report; exit 2 means deny or confirmation required.
     Scan {
         #[arg(short, long)]
         file: Option<PathBuf>,
@@ -78,6 +85,11 @@ enum Command {
         settings: PathBuf,
     },
     Compatibility,
+    /// Inspect or export the latest 100 alert decisions.
+    History {
+        #[command(subcommand)]
+        command: HistoryCommand,
+    },
     /// Offline synthetic detector check.
     SelfTest,
 }
@@ -85,6 +97,27 @@ enum Command {
 enum RulesCommand {
     List,
     Validate,
+}
+#[derive(Subcommand)]
+enum HistoryCommand {
+    List,
+    Export {
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+}
+fn history_path(cli: &Cli) -> Result<PathBuf, String> {
+    let path = match &cli.history_file {
+        Some(p) => p.clone(),
+        None => history::default_path()?,
+    };
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(std::env::current_dir()
+            .map_err(|_| "cannot locate current directory")?
+            .join(path))
+    }
 }
 #[derive(Subcommand)]
 enum PolicyCommand {
@@ -153,20 +186,21 @@ fn run(cli: &Cli) -> Result<u8, String> {
             agent,
             audit,
             managed_by,
+            interactive_confirmation,
         } => {
             let _ = agent; // Deliberately use only the shared protocol subset.
             if managed_by.as_deref().is_some_and(|s| s != "agent-dlp-lite") {
                 return Err("invalid ownership marker".into());
             }
             let event = read_event(None, policy.pack.limits.max_event_bytes)?;
-            let report = engine::evaluate(&event, &policy);
-            if let Some(path) = audit {
-                storage::audit(
-                    path,
-                    &serde_json::to_string(&report).map_err(|_| "cannot encode audit")?,
-                )?;
-            }
-            print_json(&report.hook_output())?;
+            let path = audit.clone().map_or_else(|| history_path(cli), Ok)?;
+            handle_hook(
+                &event,
+                &policy,
+                cli.policy.as_deref(),
+                &path,
+                *interactive_confirmation,
+            )?;
             Ok(0) // Valid JSON decisions use 0; failures use 2.
         }
         Command::Scan { file } => scan(file.as_deref(), &policy),
@@ -210,10 +244,11 @@ fn run(cli: &Cli) -> Result<u8, String> {
         }
         Command::Integration { agent } => {
             let p = pinned_policy(cli)?;
-            print_json(&integration::configuration(
+            print_json(&integration::configuration_with_history(
                 *agent,
                 &std::env::current_exe().map_err(|_| "cannot locate executable")?,
                 &p,
+                &history_path(cli)?,
             )?)?;
             Ok(0)
         }
@@ -222,10 +257,11 @@ fn run(cli: &Cli) -> Result<u8, String> {
             settings: path,
         } => {
             let p = pinned_policy(cli)?;
-            let config = integration::configuration(
+            let config = integration::configuration_with_history(
                 *agent,
                 &std::env::current_exe().map_err(|_| "cannot locate executable")?,
                 &p,
+                &history_path(cli)?,
             )?;
             let mut root = settings(path)?;
             integration::merge(&mut root, config)?;
@@ -258,11 +294,29 @@ fn run(cli: &Cli) -> Result<u8, String> {
             )?;
             Ok(0)
         }
+        Command::History { command } => {
+            let records = history::list(&history_path(cli)?)?;
+            match command {
+                HistoryCommand::List => {
+                    print_json(&json!({"capacity":history::CAPACITY,"records":records}))?
+                }
+                HistoryCommand::Export { output } => {
+                    let text = records
+                        .iter()
+                        .map(|v| serde_json::to_string(v).map(|s| s + "\n"))
+                        .collect::<Result<String, _>>()
+                        .map_err(|_| "cannot encode history")?;
+                    storage::create(output, &text)?;
+                    print_json(&json!({"exported":records.len()}))?;
+                }
+            }
+            Ok(0)
+        }
         Command::SelfTest => {
             let builtin = CompiledPack::load(None)?;
             for (prompt, expected) in [
                 ("hello world", Action::Allow),
-                ("person@example.invalid", Action::Warn),
+                ("person@example.invalid", Action::Confirm),
             ] {
                 let event = Event::parse(
                     &json!({"hook_event_name":"UserPromptSubmit","prompt":prompt}).to_string(),
@@ -284,7 +338,59 @@ fn scan(file: Option<&Path>, policy: &CompiledPack) -> Result<u8, String> {
     let event = read_event(file, policy.pack.limits.max_event_bytes)?;
     let report = engine::evaluate(&event, policy);
     print_json(&report)?;
-    Ok(if report.action == Action::Deny { 2 } else { 0 })
+    Ok(if matches!(report.action, Action::Deny | Action::Confirm) {
+        2
+    } else {
+        0
+    })
+}
+fn handle_hook(
+    event: &Event,
+    policy: &CompiledPack,
+    policy_path: Option<&Path>,
+    history_path: &Path,
+    interactive: bool,
+) -> Result<(), String> {
+    let mut report = engine::evaluate(event, policy);
+    if report.action == Action::Allow || event.hook_event_name == "PostToolUse" {
+        return print_json(&report.hook_output());
+    }
+    let mut source = "policy";
+    let mut reason = String::new();
+    if report.action == Action::Confirm {
+        let answer = confirmation::decide(
+            event,
+            policy,
+            policy_path,
+            &report.reason(),
+            interactive,
+            confirmation::request,
+        );
+        report.action = if answer.allowed {
+            Action::Allow
+        } else {
+            Action::Deny
+        };
+        source = answer.source;
+        reason = answer.reason;
+    }
+    let record = history::record(event, policy, &report, source, &reason);
+    let mut output;
+    if history::append(history_path, record).is_err() {
+        report.action = Action::Deny;
+        output = report.hook_output();
+        output["systemMessage"] =
+            json!("Agent DLP Lite: alert history unavailable; operation denied");
+    } else {
+        output = report.hook_output();
+        if source != "policy" && report.action == Action::Deny {
+            output["systemMessage"] = json!(format!(
+                "Agent DLP Lite: confirmation {source}; {}",
+                history::redacted(&reason, policy, 256)
+            ));
+        }
+    }
+    print_json(&output)
 }
 fn main() -> ExitCode {
     let cli = Cli::parse();

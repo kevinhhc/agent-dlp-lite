@@ -38,16 +38,25 @@ pub fn quote_path(path: &Path) -> Result<String, String> {
 }
 
 pub fn configuration(agent: Agent, executable: &Path, policy: &Path) -> Result<Value, String> {
+    configuration_with_history(agent, executable, policy, &crate::history::default_path()?)
+}
+pub fn configuration_with_history(
+    agent: Agent,
+    executable: &Path,
+    policy: &Path,
+    history: &Path,
+) -> Result<Value, String> {
     let command = format!(
-        "{} --policy {} hook --agent {}{}",
+        "{} --policy {} --history-file {} hook --agent {} --interactive-confirmation{}",
         quote_path(executable)?,
         quote_path(policy)?,
+        quote_path(history)?,
         agent.name(),
         MARKER
     );
     Ok(json!({"hooks": {
-        "PreToolUse": [{"matcher":"*", "hooks":[{"type":"command", "command":command, "timeout":5}]}],
-        "UserPromptSubmit": [{"hooks":[{"type":"command", "command":command, "timeout":5}]}]
+        "PreToolUse": [{"matcher":"*", "hooks":[{"type":"command", "command":command, "timeout":90}]}],
+        "UserPromptSubmit": [{"hooks":[{"type":"command", "command":command, "timeout":90}]}]
     }}))
 }
 

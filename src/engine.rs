@@ -127,10 +127,10 @@ impl Report {
     /// No explicit 'allow': preserve the host's existing permission checks.
     pub fn hook_output(&self) -> Value {
         match (self.event.as_str(), self.action) {
-            ("PreToolUse", Action::Deny) => json!({"hookSpecificOutput": {
+            ("PreToolUse", Action::Deny | Action::Confirm) => json!({"hookSpecificOutput": {
                 "hookEventName":"PreToolUse", "permissionDecision":"deny", "permissionDecisionReason":self.reason()
             }}),
-            ("UserPromptSubmit", Action::Deny) => {
+            ("UserPromptSubmit", Action::Deny | Action::Confirm) => {
                 json!({"decision":"block", "reason":self.reason()})
             }
             (_, Action::Allow) => json!({}),

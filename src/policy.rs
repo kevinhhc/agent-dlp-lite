@@ -10,6 +10,8 @@ pub const MAX_POLICY_BYTES: usize = 256 * 1024;
 pub enum Action {
     Allow,
     Warn,
+    #[serde(alias = "ask")]
+    Confirm,
     Deny,
 }
 

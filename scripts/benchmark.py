@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as directory:
         timings = []
         for i in range(args.samples + 10):
             start = time.perf_counter_ns()
-            process = subprocess.run([str(binary), 'hook', '--agent', 'codex'], input=payload, capture_output=True, check=True)
+            process = subprocess.run([str(binary), '--history-file', str(root / 'history.jsonl'), 'hook', '--agent', 'codex'], input=payload, capture_output=True, check=True)
             elapsed = (time.perf_counter_ns() - start) / 1e6
             response = json.loads(process.stdout)
             if name == 'small_script_hook':

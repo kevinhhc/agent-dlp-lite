@@ -9,7 +9,7 @@ parser.add_argument('--target', required=True)
 parser.add_argument('--output', type=Path, default=Path('dist'))
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
-version = '0.1.0'
+version = '0.2.0'
 args.output.mkdir(parents=True, exist_ok=True)
 windows = 'windows' in args.target
 binary_name = 'agent-dlp.exe' if windows else 'agent-dlp'
@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as directory:
     digest = hashlib.sha256(destination.read_bytes()).hexdigest()
     for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_EN.md']:
         shutil.copyfile(root / name, package / name)
-    for name in ['docs', 'examples']:
+    for name in ['docs', 'examples', 'third-party-licenses']:
         shutil.copytree(root / name, package / name)
     (package / 'scripts').mkdir()
     for name in ['install.sh', 'install.ps1']:
@@ -43,6 +43,13 @@ Extract the archive and open a terminal in this directory. No language runtime i
 3. 预览接入配置 / Preview hook configuration:
    {invocation} --policy policy-pack.yaml integration --agent codex
    {invocation} --policy policy-pack.yaml integration --agent workbuddy
+
+v0.2: 默认邮箱、手机号和敏感路径需确认；旧策略 warn 不会自动升级。
+Default PII/path rules request confirmation. Legacy warn policies remain nonblocking.
+升级后重新 install：90 秒 Hook、--interactive-confirmation 和固定历史路径。
+Reinstall hooks after upgrading. The local browser page waits 60 seconds; errors/timeouts deny.
+默认只保留最近 100 条告警决定；查看：{invocation} history list
+Only the latest 100 alert decisions are retained. See docs/confirmation-history.md.
 
 SHA256SUMS contains the binary checksum. Read README.md, README_EN.md and docs/installation.md before installing hooks.
 候选版未签名/公证，桌面端实际接入范围见 docs/compatibility.md。

@@ -2,7 +2,7 @@
 
 ## 环境
 
-最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、网络服务或管理员权限。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[已验证的 0.1.0 下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257) 已提供五种候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。Windows、macOS 和 Linux 已通过 GitHub CI；五种目标已构建成功。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
+最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、外部网络服务或管理员权限。交互确认需要默认浏览器；Linux 图形桌面需要系统提供 xdg-open。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) 按版本提供五种候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。下载时确认工作流版本与包内 artifact-manifest.json 一致，选择成功的 v0.2.0 构建。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
 
 Linux musl 目标减少 glibc 兼容问题。macOS 候选版没有开发者签名/公证；发行前还要验证最低操作系统版本、签名和下载隔离行为。Windows 10/11 是否可运行须在对应机器验收，不能只依据编译目标保证。
 
@@ -45,3 +45,12 @@ agent-dlp uninstall --settings /absolute/path/to/settings.json
 卸载仅移除命令末尾带本工具管理标记的处理器，保留用户后续增加的其他配置，并在修改前再次备份。不要手工给其他工具添加相同管理标记。验证配置后删除二进制，按需保留或删除策略、审计与备份。
 
 需要恢复时，先保存当前配置，人工比较备份并恢复必要内容；直接覆盖旧备份可能丢失后续修改。备份没有自动保留期，需要使用者清理。
+
+## 从 v0.1 升级至 v0.2
+
+1. 下载 v0.2.0 对应平台包并校验摘要；替换已安装二进制前保留旧副本，再执行 self-test。
+2. 保留并审核自己的策略。旧 warn 仍提醒后继续；需要人工确认的规则改为 action: confirm，或采用新包默认策略中的确认规则。init 不覆盖旧文件，安装也不自动替换策略。
+3. 使用新二进制、策略绝对路径重新 install 到原宿主实际配置文件，生成 --interactive-confirmation、固定 --history-file 和 90 秒 timeout。旧 5 秒 Hook 遇到 confirm 会直接拒绝并提示重新安装。
+4. 重新加载宿主，用合成样例分别验证允许、拒绝、超时和历史记录；详见[确认与记录](confirmation-history.md)。
+
+历史默认启用，只保留最近 100 条告警决定；旧版 --audit 路径仍可使用，但不会自动合并到默认路径。导出的副本和配置备份需要用户自行管理。卸载 Hook 不删除这些数据。

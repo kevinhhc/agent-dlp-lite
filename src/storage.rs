@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-fn options() -> OpenOptions {
+pub(crate) fn options() -> OpenOptions {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -104,14 +104,6 @@ pub fn replace_with_backup(path: &Path, text: &str) -> Result<Option<PathBuf>, S
 }
 
 pub fn audit(path: &Path, text: &str) -> Result<(), String> {
-    let mut f = options()
-        .append(true)
-        .create(true)
-        .open(path)
-        .map_err(|_| "cannot open audit log")?;
-    if !f.metadata().map_err(|_| "cannot stat audit log")?.is_file() {
-        return Err("audit must be a regular file".into());
-    }
-    f.write_all(format!("{text}\n").as_bytes())
-        .map_err(|_| "cannot write audit log".into())
+    let record = serde_json::from_str(text).map_err(|_| "invalid audit record")?;
+    crate::history::append(path, record)
 }

@@ -1,20 +1,26 @@
 # Agent DLP Lite
 
-An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API key, database, or Python/Node runtime is required to run the binary. The detector does not make network requests.
+An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API key, database, or Python/Node runtime is required to run the binary. The detector makes no external network requests. Confirmation temporarily serves a loopback-only page in the default browser.
 
-**0.1.0 precompiled candidates are available for private testing.** Codex and Tencent WorkBuddy share one engine and portable YAML policy. Automated protocol tests are available; actual desktop interception has not been verified on either product. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md). [中文说明](README.md).
+**0.2.0 precompiled candidates are available for private testing.** Codex and Tencent WorkBuddy share one engine and portable YAML policy. Automated protocol tests are available; actual desktop interception has not been verified on either product. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md). [中文说明](README.md).
 
 ## Features
 
 - Secret patterns, email and mainland China mobile-number patterns, sensitive-path clues, custom regular expressions.
-- Allow / Warn / Deny, rule switches and event scopes, portable policy import/export.
+- Allow / Warn / Confirm / Deny, rule switches and event scopes, portable policy import/export.
 - Bounded inspection of common Shell, Python and JavaScript invocations, inline code and simple local dependencies.
 - Conservative source/sink co-occurrence detection of **potential** exfiltration; not full taint analysis.
-- Optional redacted JSONL audit; backup and non-destructive hook configuration merging.
+- Bounded redacted JSONL alert history; backup and non-destructive hook configuration merging.
+
+## New in v0.2.0
+
+`action: confirm` opens a short-lived local browser page for a single allow/deny decision. Timeout, unavailable UI, changed policy or changed inspected scripts deny the operation. Reinstall hooks after upgrading to enable confirmation with a 90-second host timeout. Existing warn policies remain non-blocking. The new default pack requests confirmation for PII and sensitive paths.
+
+Only the latest 100 pre-action alert decisions are retained automatically, including masked context, source, reason, detector version and policy fingerprint. `history list` and `history export --output FILE` support future policy review. No automatic policy modification or external training is performed. See the [confirmation/history guide](docs/confirmation-history.md).
 
 ## Download native candidates
 
-All five targets have been built successfully. Open the [verified 0.1.0 download run](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257) and choose your platform under **Artifacts** near the bottom of the page. Later builds are listed in the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml). The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
+Open the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml), select a successful run labeled **v0.2.0**, and choose your platform under **Artifacts** near the bottom of the page. Verify the version and target in artifact-manifest.json. The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
 
 Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Extract the download and its platform archive, read `START_HERE.txt`, and run the included self-test. Packages include the native executable, default policy, installers, documentation and SHA-256 checksums. No language runtime is required. Candidates are unsigned; workflow results establish the actual availability of each target.
 
@@ -62,7 +68,7 @@ Replace paths. Codex's documented user location is `$CODEX_HOME/hooks.json`, nor
 
 Edit `rules` in the generated YAML. Add a custom rule with `id`, `kind: custom`, `pattern`, `action`, optional `enabled`, and optional `events`. See [example](examples/custom-rules.yaml), [rule reference](docs/detection-rules.md) and [policy reference](docs/security-policies.md).
 
-Decisions combine as **deny > warn > allow**, independent of order. An allow match cannot override another rule's deny. No explicit host permission approval is emitted on clean input. Invalid policies fail rather than falling back to defaults. `--policy` is explicit; a project cannot silently replace the pack through configuration discovery.
+Decisions combine as **deny > confirm > warn > allow**, independent of order. An allow match cannot override another rule's deny. No explicit host permission approval is emitted on clean input. Invalid policies fail rather than falling back to defaults. `--policy` is explicit; a project cannot silently replace the pack through configuration discovery.
 
 ```sh
 agent-dlp --policy policy-pack.yaml rules list
@@ -74,11 +80,11 @@ Both adapters can point to the same pack. Unknown fields, unsupported schema ver
 
 ## Limits, privacy and verification
 
-Reports contain rule IDs and decisions, never matched values, raw prompts, file contents or command lines. Audit logging is off unless `hook --audit PATH` is requested. New Unix policy/audit/settings files use mode 0600. Existing permissions and Windows ACLs remain the operator's responsibility. Configuration backups may contain the original settings' sensitive values.
+Standard detection reports contain rule IDs and decisions without matched text. Decision history also stores a masked, truncated preview and reason; unknown sensitive data may remain because masking follows enabled regex rules. Pre-action alert history is enabled by default and retains at most 100 records; ordinary clean allows and post-action observations are not recorded. `--history-file PATH` selects its location; legacy `hook --audit PATH` remains an alias for a bounded journal. New Unix policy/audit/settings files use mode 0600. Existing permissions and Windows ACLs remain the operator's responsibility. Configuration backups may contain the original settings' sensitive values.
 
 Only host-delivered events are observable. Prompt hooks may run after host synchronization or uploads. PostToolUse is observation only and cannot undo an action. Static analysis is lexical and incomplete: dynamic code, obfuscation, third-party packages, compiled binaries, unrecognized tool names and time-of-check/time-of-use races remain limitations. Recognized unreadable, out-of-root or oversized scripts produce an incomplete finding and deny by default. Hosts may ignore failed/timed-out hooks. This is an application guardrail, not an OS enforcement boundary. See [script inspection](docs/script-inspection.md) and [privacy/security](docs/privacy-security.md).
 
-Latency targets include fresh process startup and policy compilation: ordinary hooks P50 ≤10 ms, P95 ≤30 ms, P99 ≤50 ms; small scripts P95 ≤100 ms; RSS ≤30 MB. See [measured local results](docs/validation.md); targets are not cross-platform guarantees. There is no daemon or persistent scan cache.
+Latency targets include fresh process startup and policy compilation: ordinary hooks P50 ≤10 ms, P95 ≤30 ms, P99 ≤50 ms; small scripts P95 ≤100 ms; RSS ≤30 MB. See [measured local results](docs/validation.md); targets are not cross-platform guarantees. There is no daemon or persistent scan cache; confirmation temporarily serves a loopback-only browser page.
 
 ```sh
 cargo fmt --all -- --check
@@ -88,7 +94,7 @@ cargo build --release --locked
 python3 scripts/benchmark.py target/release/agent-dlp --samples 200
 ```
 
-CI definitions cover Windows/macOS/Linux tests and dependency auditing. A manual build workflow prepares five binary targets and checksums, with read-only repository permissions and no release publication. See [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions) for actual remote run results. Python is for developer benchmarks only.
+CI definitions cover Windows/macOS/Linux tests and dependency auditing. A candidate workflow, triggered manually or by packaging updates, prepares five binary targets and checksums, with read-only repository permissions and no release publication. See [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions) for actual remote run results. Python is for developer benchmarks only.
 
 ## Developers: build from source
 

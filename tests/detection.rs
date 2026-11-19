@@ -27,10 +27,10 @@ fn clean_prompt_allowed() {
     );
 }
 #[test]
-fn pii_warns() {
+fn pii_requires_confirmation() {
     assert_eq!(
         engine::evaluate(&prompt("person@example.invalid"), &pack()).action,
-        Action::Warn
+        Action::Confirm
     );
 }
 #[test]
@@ -42,10 +42,10 @@ fn synthetic_secret_denied_and_redacted() {
     assert!(!r.hook_output().to_string().contains(&sample));
 }
 #[test]
-fn sensitive_path_warns() {
+fn sensitive_path_requires_confirmation() {
     assert_eq!(
         engine::evaluate(&prompt("read /workspace/.env"), &pack()).action,
-        Action::Warn
+        Action::Confirm
     );
 }
 #[test]
@@ -294,7 +294,7 @@ fn policy_validation_rejects_bad_inputs() {
         DEFAULT_POLICY.replace("schema_version: 1", "schema_version: 2"),
         DEFAULT_POLICY.replace("id: PII-EMAIL", "id: SECRET-GITHUB"),
         DEFAULT_POLICY.replace("kind: pii", "kind: typo"),
-        DEFAULT_POLICY.replace("action: warn", "actoin: warn"),
+        DEFAULT_POLICY.replace("action: confirm", "actoin: confirm"),
         DEFAULT_POLICY.replace("max_depth: 4", "max_depth: 99"),
     ] {
         assert!(CompiledPack::parse(&s).is_err());
@@ -316,7 +316,7 @@ fn policy_roundtrip() {
 #[test]
 fn numeric_pii_scanned() {
     let e=Event::parse(&json!({"hook_event_name":"PreToolUse","tool_name":"send","tool_input":{"phone":13800138000u64}}).to_string()).unwrap();
-    assert_eq!(engine::evaluate(&e, &pack()).action, Action::Warn);
+    assert_eq!(engine::evaluate(&e, &pack()).action, Action::Confirm);
 }
 
 #[test]
@@ -324,7 +324,7 @@ fn pii_in_chinese_text() {
     let sample = format!("电话{}请联系", 13800138000u64);
     assert_eq!(
         engine::evaluate(&prompt(&sample), &pack()).action,
-        Action::Warn
+        Action::Confirm
     );
 }
 

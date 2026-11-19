@@ -1,10 +1,10 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
 
 pub const EVENTS: &[&str] = &["PreToolUse", "UserPromptSubmit", "PostToolUse"];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
     pub hook_event_name: String,
     #[serde(default)]

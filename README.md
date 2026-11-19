@@ -1,24 +1,31 @@
 # Agent DLP Lite
 
-纯本地、无后台服务的 Agent DLP。Rust 单二进制，通过 Hook 检查 Prompt、工具参数和常见脚本，在宿主支持的执行前事件上返回阻断决策。运行不需要 Rust、Python、Node.js、Docker、数据库或 API Key，不发起网络请求，无遥测。
+纯本地、无后台服务的 Agent DLP。Rust 单二进制，通过 Hook 检查 Prompt、工具参数和常见脚本，在宿主支持的执行前事件上返回阻断决策。运行不需要 Rust、Python、Node.js、Docker、数据库或 API Key，不向外网发起请求，无遥测；确认时临时使用本机回环页面。
 
-**状态：0.1.0 预编译候选版已提供下载，当前用于私有测试。** Codex 与腾讯 WorkBuddy 使用相同引擎和 Policy Pack。自动化协议测试通过不代表某个桌面版本已实际执行 Hook；两个桌面端的端到端验收仍须完成。详细状态见 [兼容性](docs/compatibility.md) 和 [验证记录](docs/validation.md)。
+**状态：0.2.0 预编译候选版已提供下载，当前用于私有测试。** Codex 与腾讯 WorkBuddy 使用相同引擎和 Policy Pack。自动化协议测试通过不代表某个桌面版本已实际执行 Hook；两个桌面端的端到端验收仍须完成。详细状态见 [兼容性](docs/compatibility.md) 和 [验证记录](docs/validation.md)。
 
 [English](README_EN.md) · [安装](docs/installation.md) · [识别规则](docs/detection-rules.md) · [策略](docs/security-policies.md) · [脚本检查](docs/script-inspection.md) · [隐私与边界](docs/privacy-security.md)
 
 ## 功能
 
 - Secret：私钥头、AWS Access Key、GitHub Token、常见密钥赋值模式。
-- PII：邮箱、中国大陆手机号码格式；默认提醒，不声称识别所有个人信息。
-- 敏感文件：`.env`、凭据文件、私钥路径等文本线索；默认提醒。
-- 自定义正则、事件作用域、规则开关、Allow / Warn / Deny。
+- PII：邮箱、中国大陆手机号码格式；默认请求确认，不声称识别所有个人信息。
+- 敏感文件：`.env`、凭据文件、私钥路径等文本线索；默认请求确认。
+- 自定义正则、事件作用域、规则开关、Allow / Warn / Confirm / Deny。
 - Shell、Python、JavaScript 的常见文件调用、内联代码、本地引用；以有界 Source/Sink 线索检测潜在外传。不是完整污点分析。
 - YAML 策略包校验、测试、导出、导入，两种适配器共用决策。
-- 可选脱敏 JSONL 审计；安装前备份，卸载只移除本工具标记的 Hook。
+- 默认保留最近 100 条脱敏告警决定；安装前备份，卸载只移除本工具标记的 Hook。
+
+## v0.2.0 新增
+
+- `action: confirm`：通过临时本地确认页，由用户决定仅放行本次或拒绝；超时/不可用拒绝。
+- 自动保留最近 100 条告警决定，记录脱敏上下文、选择及原因，超过后删除最旧记录。
+- `history list` / `history export`：为后续策略调整准备数据，不自动修改规则。
+- 升级后须重新安装 Hook（90 秒超时）；旧策略的 warn 仍仅提醒。详见[确认与记录指南](docs/confirmation-history.md)。
 
 ## 预编译候选版下载
 
-五个平台的预编译包已构建成功。打开 [0.1.0 已验证的下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44485540257)，在页面底部的 **Artifacts** 区域选择对应平台。后续构建见 [候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
+打开[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml)，选择标注 **v0.2.0** 且成功的运行，在页面底部的 **Artifacts** 区域下载对应平台。核对包内 artifact-manifest.json 的版本与目标。当前仓库为私有，需要登录有仓库访问权限的 GitHub 账号；构建产物保留 90 天。
 
 提供 Windows x64、macOS Apple Silicon/Intel、Linux x64/ARM64（musl）五种目标。解压下载文件及其中的平台压缩包，先阅读 `START_HERE.txt`，再执行自测。包内有单二进制、默认策略、安装脚本、文档和 SHA-256 校验值，运行无需安装开发环境。候选文件未签名/公证；各平台实际构建状态以工作流结果为准。
 
@@ -51,7 +58,7 @@ agent-dlp --policy policy-pack.yaml integration --agent codex
 agent-dlp --policy policy-pack.yaml integration --agent workbuddy
 ```
 
-输出 JSON 中使用绝对二进制路径、绝对策略路径。默认注册 `PreToolUse` 和 `UserPromptSubmit`，不注册事后阻断。
+输出 JSON 中使用绝对二进制、策略及历史路径，启用交互确认并设为 90 秒超时。默认注册 `PreToolUse` 和 `UserPromptSubmit`，不注册事后阻断。
 
 仅在确认目标桌面版本的配置位置和 Hook 支持后合并配置：
 
@@ -85,7 +92,7 @@ agent-dlp uninstall --settings /absolute/path/to/settings.json
     events: [UserPromptSubmit, PreToolUse]
 ```
 
-`events` 为空/省略表示适用于全部已支持事件。规则按 **deny > warn > allow** 合并，顺序不影响结果。`allow` 不能覆盖其他规则的 `deny`；要处理误报，修改命中规则的模式、范围或开关。程序不会向 Agent 返回显式 `permissionDecision: allow`，避免改变宿主原有权限检查。
+`events` 为空/省略表示适用于全部已支持事件。规则按 **deny > confirm > warn > allow** 合并，顺序不影响结果。`allow` 不能覆盖其他规则的 `deny`；要处理误报，修改命中规则的模式、范围或开关。程序不会向 Agent 返回显式 `permissionDecision: allow`，避免改变宿主原有权限检查。
 
 ```sh
 agent-dlp --policy policy-pack.yaml rules list
@@ -102,7 +109,7 @@ Hook 只能处理宿主交付的事件。Prompt Hook 未必早于宿主的上传
 
 已识别脚本读取失败、越出工作目录、超限或部分动态模式会产生 `INSPECTION-INCOMPLETE`，默认拒绝。输入/配置错误在 Hook 模式退出 2，是否阻断取决于宿主。宿主超时、禁用或绕过 Hook 时，本程序无法强制执行安全策略。不要将其描述为绝对不可绕过的系统边界。
 
-性能目标：普通 Hook P50 ≤10 ms、P95 ≤30 ms、P99 ≤50 ms；小脚本 P95 ≤100 ms；RSS ≤30 MB。目标不等于所有平台保证。实际本机数据见 [验证记录](docs/validation.md)。无常驻进程，无持久扫描缓存，每次重新读取脚本，避免旧缓存复用。
+性能目标：普通 Hook P50 ≤10 ms、P95 ≤30 ms、P99 ≤50 ms；小脚本 P95 ≤100 ms；RSS ≤30 MB。目标不等于所有平台保证。实际本机数据见 [验证记录](docs/validation.md)。确认时短暂启动本机回环服务；无常驻进程，无持久扫描缓存，每次重新读取脚本，避免旧缓存复用。
 
 ## 开发者：从源码构建
 
@@ -140,6 +147,6 @@ cargo build --release --locked
 python3 scripts/benchmark.py target/release/agent-dlp --samples 200
 ```
 
-Python 只用于开发性能测试，不是运行依赖。CI 包含 Windows、macOS、Linux 的质量检查和依赖审计；手动构建工作流生成五种目标的候选制品及校验值，不创建 Release、不公开发布。CI 的实际运行结果见 [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions)。
+Python 只用于开发性能测试，不是运行依赖。CI 包含 Windows、macOS、Linux 的质量检查和依赖审计；候选构建工作流生成五种目标的制品及校验值，可手动或在打包脚本更新时触发，不创建 Release、不公开发布。CI 的实际运行结果见 [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions)。
 
 许可证：[Apache-2.0](LICENSE)。贡献方式见 [CONTRIBUTING](CONTRIBUTING.md)，安全问题见 [SECURITY](SECURITY.md)。

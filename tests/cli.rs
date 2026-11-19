@@ -6,7 +6,14 @@ use std::{
     process::{Command, Output, Stdio},
 };
 fn invoke(args: &[&str], input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_agent-dlp"))
+    let scratch = tempfile::tempdir().unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_agent-dlp"));
+    if !args.contains(&"--history-file") {
+        command
+            .arg("--history-file")
+            .arg(scratch.path().join("history.jsonl"));
+    }
+    let mut child = command
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -169,7 +176,7 @@ fn portable_policy_export_import() {
     }
 }
 #[test]
-fn audit_is_redacted_and_disabled_by_default() {
+fn alert_history_is_redacted_and_private() {
     let d = tempfile::tempdir().unwrap();
     let a = d.path().join("audit.jsonl");
     let out = invoke(
@@ -205,7 +212,7 @@ fn refuses_symlink_audit_and_settings() {
         )
         .status
         .code(),
-        Some(2)
+        Some(0)
     );
     assert_eq!(fs::read_to_string(target).unwrap(), "original");
 }
@@ -247,7 +254,15 @@ fn generated_hook_runs_through_host_shell() {
     let policy = directory.path().join("policy with spaces.yaml");
     assert!(invoke(&["init", "-o", text(&policy)], "").status.success());
     let output = invoke(
-        &["--policy", text(&policy), "integration", "--agent", "codex"],
+        &[
+            "--history-file",
+            text(&directory.path().join("history.jsonl")),
+            "--policy",
+            text(&policy),
+            "integration",
+            "--agent",
+            "codex",
+        ],
         "",
     );
     let config = value(&output);
@@ -289,4 +304,76 @@ fn generated_hook_runs_through_host_shell() {
         String::from_utf8_lossy(&result.stderr)
     );
     assert_eq!(value(&result)["decision"], "block");
+}
+
+#[test]
+fn confirmation_disabled_is_denied_and_recorded() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("history.jsonl");
+    let event =
+        json!({"hook_event_name":"UserPromptSubmit","prompt":"person@example.invalid"}).to_string();
+    let out = invoke(
+        &["--history-file", text(&path), "hook", "--agent", "codex"],
+        &event,
+    );
+    assert!(out.status.success());
+    assert_eq!(value(&out)["decision"], "block");
+    let records = value(&invoke(
+        &["--history-file", text(&path), "history", "list"],
+        "",
+    ));
+    assert_eq!(records["records"][0]["decision"], "deny");
+    assert_eq!(records["records"][0]["decision_source"], "unavailable");
+    assert!(!records.to_string().contains("person@example.invalid"));
+    let output = d.path().join("export.jsonl");
+    assert!(invoke(
+        &[
+            "--history-file",
+            text(&path),
+            "history",
+            "export",
+            "--output",
+            text(&output)
+        ],
+        ""
+    )
+    .status
+    .success());
+    assert_eq!(fs::read_to_string(output).unwrap().lines().count(), 1);
+}
+
+#[test]
+fn ordinary_allow_does_not_write_history() {
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("history.jsonl");
+    let event =
+        json!({"hook_event_name":"UserPromptSubmit","prompt":"ordinary public task"}).to_string();
+    assert!(invoke(
+        &["--history-file", text(&p), "hook", "--agent", "codex"],
+        &event
+    )
+    .status
+    .success());
+    assert!(!p.exists());
+}
+
+#[test]
+fn generated_confirmation_configuration_has_sufficient_timeout() {
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("policy.yaml");
+    invoke(&["init", "-o", text(&p)], "");
+    let out = invoke(
+        &["--policy", text(&p), "integration", "--agent", "codex"],
+        "",
+    );
+    let config = value(&out);
+    for event in ["PreToolUse", "UserPromptSubmit"] {
+        let hook = &config["hooks"][event][0]["hooks"][0];
+        assert_eq!(hook["timeout"], 90);
+        assert!(hook["command"]
+            .as_str()
+            .unwrap()
+            .contains("--interactive-confirmation"));
+        assert!(hook["command"].as_str().unwrap().contains("--history-file"));
+    }
 }
