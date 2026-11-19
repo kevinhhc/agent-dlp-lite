@@ -1,116 +1,80 @@
 # Agent DLP Lite
 
-An offline Rust executable for local agent DLP hooks. No daemon, telemetry, API key, database, or Python/Node runtime is required to run the binary. The detector makes no external network requests. Confirmation temporarily serves a loopback-only page in the default browser.
+Local agent DLP in one Rust executable. No Python/Node runtime, Docker, database or API key is required.
 
-**0.2.0 precompiled candidates are available for private testing.** Codex and Tencent WorkBuddy share one engine and portable YAML policy. Automated protocol tests are available; actual desktop interception has not been verified on either product. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md). [中文说明](README.md).
+**v0.2.2 private candidate:** Codex uses a local stdio MCP hook and structured confirmation form. If confirmation is unsupported, unavailable, invalid or times out, confirm alerts warn, record and continue. Existing deny rules still block. Native desktop UI acceptance remains pending; protocol tests do not certify a client version.
 
-## Features
+[中文](README.md) · [Installation](docs/installation.md) · [Confirmation/history](docs/confirmation-history.md) · [Validation](docs/validation.md)
 
-- Secret patterns, email and mainland China mobile-number patterns, sensitive-path clues, custom regular expressions.
-- Allow / Warn / Confirm / Deny, rule switches and event scopes, portable policy import/export.
-- Bounded inspection of common Shell, Python and JavaScript invocations, inline code and simple local dependencies.
-- Conservative source/sink co-occurrence detection of **potential** exfiltration; not full taint analysis.
-- Bounded redacted JSONL alert history; backup and non-destructive hook configuration merging.
+## Download and run
 
-## New in v0.2.0
+Open the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml), choose a successful **v0.2.2** run and download your platform under Artifacts. Private repository access is required; artifacts expire after 90 days. Verify version, target and source commit in artifact-manifest.json.
 
-`action: confirm` opens a short-lived local browser page for a single allow/deny decision. Timeout, unavailable UI, changed policy or changed inspected scripts deny the operation. Reinstall hooks after upgrading to enable confirmation with a 90-second host timeout. Existing warn policies remain non-blocking. The new default pack requests confirmation for PII and sensitive paths.
+Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Packages contain the binary, policy, installers, documentation, checksums and complete license notices. Candidates are unsigned/unnotarized; see the macOS steps in the installation guide.
 
-Only the latest 100 pre-action alert decisions are retained automatically, including masked context, source, reason, detector version and policy fingerprint. `history list` and `history export --output FILE` support future policy review. No automatic policy modification or external training is performed. See the [confirmation/history guide](docs/confirmation-history.md).
-
-## Download native candidates
-
-Open the successful [v0.2.0 five-platform download run](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44503897249) and choose your platform under **Artifacts** near the bottom of the page. All five targets built successfully. Future builds appear in the [candidate workflow](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml). Verify the version and target in artifact-manifest.json. The private repository requires a signed-in account with repository access. Artifacts are retained for 90 days.
-
-Targets: Windows x64, macOS ARM64/Intel, Linux x64/ARM64 musl. Extract the download and its platform archive, read `START_HERE.txt`, and run the included self-test. Packages include the native executable, default policy, installers, documentation and SHA-256 checksums. No language runtime is required. Candidates are unsigned; workflow results establish the actual availability of each target.
-
-## User quick start
-
-Download and extract your platform package, then open a terminal in the extracted `agent-dlp-lite` directory. The executable and `policy-pack.yaml` are included. No Rust, Python or Node.js installation is required.
-
-macOS / Linux:
-
-```sh
+~~~sh
+./agent-dlp --version
 ./agent-dlp self-test
 ./agent-dlp --policy policy-pack.yaml policy validate
-```
+~~~
 
-Windows PowerShell:
+Windows uses .\agent-dlp.exe. Move the executable and policy to stable trusted locations before installing hooks.
 
-```powershell
-.\agent-dlp.exe self-test
-.\agent-dlp.exe --policy policy-pack.yaml policy validate
-```
+## Codex setup
 
-Both commands should exit successfully. Read `START_HERE.txt` and the [installation guide](docs/installation.md), put the executable in a permanent location and add its directory to PATH before configuring hooks below. Use its full path when it is not on PATH.
+~~~sh
+./agent-dlp --policy policy-pack.yaml integration --agent codex
+./agent-dlp --policy policy-pack.yaml integration --agent codex --mcp
+./agent-dlp --policy policy-pack.yaml install --agent codex --settings /absolute/path/to/hooks.json --mcp-config /absolute/path/to/config.toml
+~~~
 
-## Configure hooks
+Codex normally loads these files from its user configuration directory, controlled by CODEX_HOME. Installation backs up and merges both files, preserving unrelated hooks, servers and TOML comments. An existing unrelated server named agent-dlp-lite is not overwritten. The two writes are not a cross-file transaction; inspect errors and backups if interrupted. Reload the client, trust changed hooks and verify the MCP connection.
 
-Keep the binary in a permanent location and copy the supplied policy-pack.yaml into a trusted directory. Preview:
+The same binary runs as a Codex-managed MCP child process. A paired command hook independently warns and records if MCP is unavailable; keep both handlers. They may run concurrently. Normal MCP execution has no browser, listener, external API or model sampling.
 
-```sh
-agent-dlp --policy policy-pack.yaml integration --agent codex
-agent-dlp --policy policy-pack.yaml integration --agent workbuddy
-```
+## Decisions and feedback
 
-After verifying that the specific desktop version supports the protocol and identifying its settings path:
+- Priority: deny > confirm > warn > allow. Confirm also accepts the ask policy alias; it does not output an unsupported host permissionDecision=ask.
+- A valid form choice allows only this operation or denies it. An optional reason is masked before storage.
+- Missing forms, UI errors, invalid choices and a 60-second timeout warn, record and continue. These are not human approval.
+- Decline/cancel, changed policy or inspected scripts, incomplete revalidation, and existing deny rules block. Bare client decline is not labeled human feedback because it may originate in client policy.
+- History/inspection failures return a blocking decision; the host must actually honor hook results.
+- Default PII/path rules use confirm; secrets and potential exfiltration use deny. Existing warn rules remain nonblocking.
 
-```sh
-agent-dlp --policy policy-pack.yaml install --agent codex --settings /absolute/path/to/hooks.json
-agent-dlp --policy policy-pack.yaml install --agent workbuddy --settings /absolute/path/to/settings.json
-agent-dlp status --settings /absolute/path/to/settings.json
-agent-dlp uninstall --settings /absolute/path/to/settings.json
-```
+Only the latest 100 pre-action alert records are retained automatically, without rolling backups. With host invocation IDs, command/MCP results update one hashed operation record; a late baseline cannot overwrite the final choice. Without IDs duplicate entries may occur, still within 100. Clean allows, scan and PostToolUse do not write history. Exports are separate user-managed copies.
 
-Replace paths. Codex's documented user location is `$CODEX_HOME/hooks.json`, normally `~/.codex/hooks.json`. WorkBuddy desktop settings discovery is pending verification; do not assume CodeBuddy's directory is its location. Installation explicitly requires a settings path, preserves unrelated settings/hooks and backs up existing files. Strict JSON is required; JSONC is unsupported. Restart/reload and perform the [desktop acceptance procedure](docs/compatibility.md). Registration count alone does not prove active protection. Unregister hooks before deleting the binary.
+Only human_feedback=true with decision_source=user identifies valid explicit form choices for future analysis. Automatic review and fallback continuation never count as user approval. Masking follows enabled regexes; unknown sensitive text can remain in a preview or reason. No automatic policy learning or external training occurs.
 
-## Policies
+~~~sh
+./agent-dlp history list
+./agent-dlp history export --output alert-decisions.jsonl
+~~~
 
-Edit `rules` in the generated YAML. Add a custom rule with `id`, `kind: custom`, `pattern`, `action`, optional `enabled`, and optional `events`. See [example](examples/custom-rules.yaml), [rule reference](docs/detection-rules.md) and [policy reference](docs/security-policies.md).
+## WorkBuddy and removal
 
-Decisions combine as **deny > confirm > warn > allow**, independent of order. An allow match cannot override another rule's deny. No explicit host permission approval is emitted on clean input. Invalid policies fail rather than falling back to defaults. `--policy` is explicit; a project cannot silently replace the pack through configuration discovery.
+~~~sh
+./agent-dlp --policy policy-pack.yaml install --agent workbuddy --settings /absolute/path/to/settings.json
+./agent-dlp uninstall --settings /absolute/path/to/hooks.json --mcp-config /absolute/path/to/config.toml
+~~~
 
-```sh
-agent-dlp --policy policy-pack.yaml rules list
-agent-dlp --policy policy-pack.yaml policy export --output shared.yaml
-agent-dlp policy import shared.yaml --output imported.yaml
-```
+WorkBuddy uses command-only warning fallback by default. Native form support and its actual desktop settings path need separate verification. Do not assume a CodeBuddy directory is WorkBuddy's directory. Uninstall removes only owned entries and retains policy/history/exports.
 
-Both adapters can point to the same pack. Unknown fields, unsupported schema versions, duplicate identifiers and invalid regexes are rejected.
+The old browser confirmation is available only through the explicit hook --interactive-confirmation compatibility flag; its timeout/unavailable behavior remains deny. New generated configurations do not use it.
 
-## Limits, privacy and verification
+## Limits and development
 
-Standard detection reports contain rule IDs and decisions without matched text. Decision history also stores a masked, truncated preview and reason; unknown sensitive data may remain because masking follows enabled regex rules. Pre-action alert history is enabled by default and retains at most 100 records; ordinary clean allows and post-action observations are not recorded. `--history-file PATH` selects its location; legacy `hook --audit PATH` remains an alias for a bounded journal. New Unix policy/audit/settings files use mode 0600. Existing permissions and Windows ACLs remain the operator's responsibility. Configuration backups may contain the original settings' sensitive values.
+Only host-delivered events are inspected. Prompt sync may precede hooks; post-action checks cannot undo actions. Lexical script inspection is bounded and incomplete. Host bypasses, untrusted/disabled hooks, tool coverage gaps and file changes after inspection remain limitations. [Security model](docs/privacy-security.md), [acceptance](docs/compatibility.md), [policy portability](docs/policy-portability.md).
 
-Only host-delivered events are observable. Prompt hooks may run after host synchronization or uploads. PostToolUse is observation only and cannot undo an action. Static analysis is lexical and incomplete: dynamic code, obfuscation, third-party packages, compiled binaries, unrecognized tool names and time-of-check/time-of-use races remain limitations. Recognized unreadable, out-of-root or oversized scripts produce an incomplete finding and deny by default. Hosts may ignore failed/timed-out hooks. This is an application guardrail, not an OS enforcement boundary. See [script inspection](docs/script-inspection.md) and [privacy/security](docs/privacy-security.md).
+Building requires Rust 1.100+. Python is for developer utilities only.
 
-Latency targets include fresh process startup and policy compilation: ordinary hooks P50 ≤10 ms, P95 ≤30 ms, P99 ≤50 ms; small scripts P95 ≤100 ms; RSS ≤30 MB. See [measured local results](docs/validation.md); targets are not cross-platform guarantees. There is no daemon or persistent scan cache; confirmation temporarily serves a loopback-only browser page.
-
-```sh
+~~~sh
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo build --release --locked
-python3 scripts/benchmark.py target/release/agent-dlp --samples 200
-```
-
-CI definitions cover Windows/macOS/Linux tests and dependency auditing. A candidate workflow, triggered manually or by packaging updates, prepares five binary targets and checksums, with read-only repository permissions and no release publication. See [GitHub Actions](https://github.com/kevinhhc/agent-dlp-lite/actions) for actual remote run results. Python is for developer benchmarks only.
-
-## Developers: build from source
-
-Contributing or compiling from source requires Rust 1.100+. Run these commands in the source checkout:
-
-```sh
-cargo build --release --locked
 ./target/release/agent-dlp self-test
-./target/release/agent-dlp init --output policy-pack.yaml
-./target/release/agent-dlp --policy policy-pack.yaml policy validate
-./target/release/agent-dlp scan --file tests/fixtures/clean.json
-./target/release/agent-dlp policy test --file tests/fixtures/upload.json
-```
+~~~
 
-The final command intentionally exits **2** with a deny report. It does not execute the command in the JSON, read a real `.env`, or contact the example URL. Windows uses `target\release\agent-dlp.exe`.
+CI covers Windows/macOS/Linux and dependency audit. Candidate builds produce five targets without publishing a Release or changing repository visibility. Timing data is version-specific; paired command/MCP scans are separate work. [Measured validation](docs/validation.md).
 
-Install a local binary with `scripts/install.sh --binary PATH --sha256 EXPECTED_HASH --prefix DIRECTORY`, or `scripts/install.ps1 -BinaryPath PATH -Sha256 EXPECTED_HASH -InstallDir DIRECTORY` on Windows. No remote installer or runtime download is used. Obtain hashes from a trusted release manifest when releases become available. See [installation](docs/installation.md).
-
-Licensed under [Apache-2.0](LICENSE). See [contributing](CONTRIBUTING.md) and [security reporting](SECURITY.md).
+[Apache-2.0](LICENSE); [dependency licenses](THIRD_PARTY_NOTICES.md); [contributing](CONTRIBUTING.md); [security reporting](SECURITY.md).

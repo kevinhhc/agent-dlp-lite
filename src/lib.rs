@@ -3,6 +3,7 @@ pub mod engine;
 pub mod event;
 pub mod history;
 pub mod integration;
+pub mod mcp;
 pub mod policy;
 pub mod scripts;
 pub mod storage;

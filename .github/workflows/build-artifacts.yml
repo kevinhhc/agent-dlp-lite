@@ -1,6 +1,6 @@
 # Build private downloadable candidates; never publish a GitHub Release.
 name: Build candidate binaries
-run-name: v0.2.0 candidate binaries (${{ github.sha }})
+run-name: v0.2.2 candidate binaries (${{ github.sha }})
 on:
   workflow_dispatch:
   push:

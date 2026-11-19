@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 — private candidate
+
+- Native Codex confirmation through a local stdio MCP hook and a nonempty decision/reason form.
+- Same Rust executable serves MCP; no external runtime or browser is required by the default integration.
+- Independent command guard records warnings if MCP is unavailable; confirm falls back to warning continuation on unsupported UI, protocol errors or timeout. Explicit denial/cancellation and existing deny rules block.
+- Bounded latest-100 history deduplicates companion/native outcomes when host invocation IDs are present; human feedback is distinguished from automatic continuation.
+- Explicit --mcp-config installation merges and backs up Codex TOML; uninstall optionally removes the owned MCP entry.
+- WorkBuddy retains command-hook warning fallback; its native form support is unverified.
+
 ## 0.2.0 — private candidate
 
 - Per-operation local browser confirmation with timeout/unavailable/changed-content denial.

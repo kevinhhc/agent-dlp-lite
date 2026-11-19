@@ -1,56 +1,75 @@
-# 安装、接入与卸载
+# v0.2.2 安装、升级与卸载
 
-## 环境
+## 环境与下载
 
-最终用户只需操作系统对应的二进制，以及支持命令 Hook 的 Agent 版本。无需开发语言运行时、外部网络服务或管理员权限。交互确认需要默认浏览器；Linux 图形桌面需要系统提供 xdg-open。源码构建需要 Rust 1.100+；Python 仅用于开发基准。[v0.2.0 下载入口](https://github.com/kevinhhc/agent-dlp-lite/actions/runs/44503897249) 已提供五种构建成功的候选包：Windows x64 MSVC（静态 CRT）、macOS ARM64/Intel、Linux x64/ARM64 musl。下载时确认工作流版本与包内 artifact-manifest.json 一致，选择成功的 v0.2.0 构建。用户应先运行对应包的 `self-test`，再配置桌面 Hook。
+用户只需对应操作系统的预编译二进制。默认 Codex 接入需要支持 MCP tool hooks 和 form elicitation 的客户端版本；无原生表单能力时 confirm 告警记录后继续。无需安装 Rust、Python、Node.js 或外部服务。MCP 是由客户端管理的本地子进程，不是系统后台服务。
 
-Linux musl 目标减少 glibc 兼容问题。macOS 候选版没有开发者签名/公证；发行前还要验证最低操作系统版本、签名和下载隔离行为。Windows 10/11 是否可运行须在对应机器验收，不能只依据编译目标保证。
+[候选构建工作流](https://github.com/kevinhhc/agent-dlp-lite/actions/workflows/build-artifacts.yml) 提供 Windows x64 MSVC、macOS ARM64/Intel、Linux x64/ARM64 musl。选择成功的 v0.2.2 运行；私有仓库需要账号权限，产物保留 90 天。核对 manifest 中的版本、目标、源码提交以及可信清单的 SHA-256。
 
-## 离线安装
+macOS 首次下载的未签名候选包可能被 Gatekeeper 阻止。确认来自本仓库并验证校验值后，在系统设置 → 隐私与安全性中找到 agent-dlp 的拦截提示，选择仍要打开，再运行 self-test。此步骤仅批准该文件；候选版没有 Developer ID 签名/Apple 公证。[Apple 说明](https://support.apple.com/en-us/102445)。
 
-macOS/Linux：下载或本机构建后，核验来自可信渠道的 SHA-256，再执行：
+~~~sh
+shasum -a 256 -c SHA256SUMS
+./agent-dlp --version
+./agent-dlp self-test
+~~~
 
-```sh
+Linux 可使用 sha256sum -c SHA256SUMS。各系统最低版本和最终用户机器仍需验收；musl 构建不能代替操作系统兼容性测试。
+
+## 放到稳定目录
+
+macOS/Linux 安装脚本仅复制与验证，不下载、不改 PATH、不自动注册 Hook。将占位值替换为来自可信清单的校验值：
+
+~~~sh
 sh scripts/install.sh --binary /path/to/agent-dlp --sha256 EXPECTED_64_HEX_HASH --prefix "$HOME/.local/bin"
-"$HOME/.local/bin/agent-dlp" self-test
-```
+~~~
 
-将 `EXPECTED_64_HEX_HASH` 替换为可信清单中的值。安装脚本不下载、不修改 PATH、不注册 Hook。默认拒绝覆盖；更新用 `--force`，会保留旧二进制副本。可以直接复制单二进制，无须使用脚本。
+默认拒绝覆盖；更新使用 --force 并保留旧二进制副本。也可手动校验后复制。Windows PowerShell 对应：
 
-Windows PowerShell：
-
-```powershell
+~~~powershell
 powershell -File scripts/install.ps1 -BinaryPath .\agent-dlp.exe -Sha256 EXPECTED_64_HEX_HASH -InstallDir "$env:LOCALAPPDATA\AgentDlpLite\bin"
-& "$env:LOCALAPPDATA\AgentDlpLite\bin\agent-dlp.exe" self-test
-```
+~~~
 
-更新使用 `-Force`。若企业限制脚本执行，按企业要求签名脚本，或手动校验后复制二进制。不要求用户改变系统执行策略。
+不要求改变企业脚本执行策略。候选版未签名，按企业要求处理。
 
-## 策略与配置
+## Codex 原生 MCP 接入
 
-在自己拥有的可信目录中运行 `agent-dlp init --output policy-pack.yaml`。该命令不会覆盖已有文件。策略中包含识别规则、安全动作、Source/Sink 模式和资源限制。两个 Agent 可共用此文件；不要把策略保存在可被不可信项目修改的目录。
+将二进制和策略放到可信固定路径。以下从解压目录调用；实际安装后使用固定二进制完整路径：
 
-先用 `integration --agent codex` 或 `integration --agent workbuddy` 预览，命令前加 `--policy /absolute/path/to/policy-pack.yaml`。再用 `install --agent AGENT --settings PATH` 显式指定宿主实际加载的文件。安装程序不读取账户、不自动推断 WorkBuddy 目录，也不改变系统策略。
+~~~sh
+./agent-dlp --policy policy-pack.yaml policy validate
+./agent-dlp --policy policy-pack.yaml integration --agent codex
+./agent-dlp --policy policy-pack.yaml integration --agent codex --mcp
+./agent-dlp --policy policy-pack.yaml install --agent codex --settings "${CODEX_HOME:-$HOME/.codex}/hooks.json" --mcp-config "${CODEX_HOME:-$HOME/.codex}/config.toml"
+~~~
 
-已有文件先完整备份至同目录 `*.agent-dlp-backup-*`，然后同目录临时文件加原子替换；检测到修改竞争时拒绝写入。编辑安装配置时应关闭其他配置编辑器；这不是跨进程配置事务。所有其他字段与非本工具 Hook 尽量保持；JSON 格式缩进可能重排。严格 JSON 之外的输入拒绝修改。
+Windows 使用 .\agent-dlp.exe，显式传入用户 Codex 目录中的 hooks.json 和 config.toml。
 
-接入成功需要三个证据：配置文件已写入、宿主实际加载该配置、合成风险事件确实阻断。[验收过程](compatibility.md) 缺一不可。`status` 只报告第一项，且不会检查二进制是否已经被移动。
+安装生成绝对二进制、策略和历史路径。命令 Hook 与 MCP Hook 都要保留：前者独立告警记录和执行 deny，后者提供原生交互。MCP 服务启动命令是同一二进制的 mcp 子命令。已有两份配置先备份，JSON/TOML 无效或同名非本工具服务器则拒绝接管。保留其他配置、TOML 注释和其他 Hook；JSON 格式可能重排。
 
-## 卸载与恢复
+两份文件先校验再写入，但不是跨文件事务。中途失败时可能只完成 MCP 配置写入；终端显示错误及备份位置，应检查两份文件再重试。备份可能含原配置敏感内容，无自动保留期，由用户清理。
 
-```sh
-agent-dlp uninstall --settings /absolute/path/to/settings.json
-```
+重新加载/重启客户端，信任修改后的 Hook，确认 agent-dlp-lite MCP 已连接。status 只统计注册项，不检查 MCP 实际就绪和 UI 支持。通过[桌面验收](compatibility.md)验证操作确实等到用户选择后才执行。
 
-卸载仅移除命令末尾带本工具管理标记的处理器，保留用户后续增加的其他配置，并在修改前再次备份。不要手工给其他工具添加相同管理标记。验证配置后删除二进制，按需保留或删除策略、审计与备份。
+## WorkBuddy
 
-需要恢复时，先保存当前配置，人工比较备份并恢复必要内容；直接覆盖旧备份可能丢失后续修改。备份没有自动保留期，需要使用者清理。
+~~~sh
+./agent-dlp --policy policy-pack.yaml install --agent workbuddy --settings /absolute/path/to/workbuddy/settings.json
+~~~
 
-## 从 v0.1 升级至 v0.2
+指定实际桌面版本加载的严格 JSON 文件，不猜测配置目录。默认命令 Hook 中 confirm 告警记录后继续、deny 阻断；WorkBuddy 原生表单未验证，不自动写入 Codex MCP 配置。
 
-1. 下载 v0.2.0 对应平台包并校验摘要；替换已安装二进制前保留旧副本，再执行 self-test。
-2. 保留并审核自己的策略。旧 warn 仍提醒后继续；需要人工确认的规则改为 action: confirm，或采用新包默认策略中的确认规则。init 不覆盖旧文件，安装也不自动替换策略。
-3. 使用新二进制、策略绝对路径重新 install 到原宿主实际配置文件，生成 --interactive-confirmation、固定 --history-file 和 90 秒 timeout。旧 5 秒 Hook 遇到 confirm 会直接拒绝并提示重新安装。
-4. 重新加载宿主，用合成样例分别验证允许、拒绝、超时和历史记录；详见[确认与记录](confirmation-history.md)。
+## 从 v0.2.0 升级
 
-历史默认启用，只保留最近 100 条告警决定；旧版 --audit 路径仍可使用，但不会自动合并到默认路径。导出的副本和配置备份需要用户自行管理。卸载 Hook 不删除这些数据。
+1. 下载/校验 v0.2.2；先替换固定路径的二进制，再 self-test。
+2. 保留自定义策略。旧 warn 不自动改成 confirm；需要交互的规则应使用 confirm。init 不覆盖旧策略，安装也不更改策略。
+3. Codex 重新 install，并新增 --mcp-config 参数；这会替换本工具旧浏览器 Hook。若只换二进制却保留旧 --interactive-confirmation 参数，仍运行浏览器兼容模式，其超时/不可用仍拒绝。
+4. 重新加载并信任 Hook，测试原生允许、拒绝、取消、无表单和超时。原生默认超时 60 秒；不可用/无效/超时告警继续，显式拒绝/取消仍阻断。历史保留 100 条，human_feedback 区分人工选择与默认继续。
+
+## 卸载
+
+~~~sh
+./agent-dlp uninstall --settings /absolute/path/to/hooks.json --mcp-config /absolute/path/to/config.toml
+~~~
+
+只移除本工具管理标记的命令、保留给本工具的 MCP inspect 处理器和标记的 MCP 服务器条目，保留其他设置。WorkBuddy 不传 --mcp-config。若需卸载 Codex MCP 服务，必须传入与安装相同的配置路径；然后重启客户端，再删除二进制。策略、历史、导出及旧备份不自动删除。

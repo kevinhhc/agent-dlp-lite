@@ -14,7 +14,7 @@ pub struct Finding {
     pub confidence: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Report {
     pub schema_version: u32,
     pub event: String,

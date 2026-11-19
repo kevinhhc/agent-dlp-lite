@@ -8,6 +8,12 @@ pub const EVENTS: &[&str] = &["PreToolUse", "UserPromptSubmit", "PostToolUse"];
 pub struct Event {
     pub hook_event_name: String,
     #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub turn_id: Option<String>,
+    #[serde(default)]
+    pub tool_use_id: Option<String>,
+    #[serde(default)]
     pub cwd: Option<PathBuf>,
     #[serde(default)]
     pub tool_name: Option<String>,
@@ -20,6 +26,20 @@ pub struct Event {
 }
 
 impl Event {
+    /// Only deduplicate when the host provides an invocation identity. Never persist raw IDs.
+    pub fn operation_id(&self) -> Option<String> {
+        use sha2::{Digest, Sha256};
+        self.session_id.as_ref().filter(|s| !s.is_empty())?;
+        if self.hook_event_name == "PreToolUse" {
+            self.tool_use_id.as_ref().filter(|s| !s.is_empty())?;
+        } else {
+            self.turn_id.as_ref().filter(|s| !s.is_empty())?;
+        }
+        Some(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(self).ok()?)
+        ))
+    }
     pub fn parse(text: &str) -> Result<Self, String> {
         let event: Self = serde_json::from_str(text).map_err(|_| "invalid hook event JSON")?;
         if !EVENTS.contains(&event.hook_event_name.as_str()) {

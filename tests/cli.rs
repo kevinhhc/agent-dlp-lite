@@ -13,8 +13,17 @@ fn invoke(args: &[&str], input: &str) -> Output {
             .arg("--history-file")
             .arg(scratch.path().join("history.jsonl"));
     }
+    command.args(args);
+    if args.contains(&"install") && args.contains(&"codex") && !args.contains(&"--mcp-config") {
+        let index = args.iter().position(|s| *s == "--settings").unwrap();
+        command.arg("--mcp-config").arg(
+            Path::new(args[index + 1])
+                .parent()
+                .unwrap()
+                .join("config.toml"),
+        );
+    }
     let mut child = command
-        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -106,7 +115,7 @@ fn install_is_idempotent_preserves_other_hooks_and_uninstalls() {
         .success());
     }
     let status = invoke(&["status", "--settings", text(&settings)], "");
-    assert_eq!(value(&status)["registered_handlers"], 2);
+    assert_eq!(value(&status)["registered_handlers"], 4);
     let mut edited: Value = serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
     edited["later"] = json!("preserve me");
     fs::write(&settings, edited.to_string()).unwrap();
@@ -307,7 +316,7 @@ fn generated_hook_runs_through_host_shell() {
 }
 
 #[test]
-fn confirmation_disabled_is_denied_and_recorded() {
+fn confirmation_unavailable_warns_and_records() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("history.jsonl");
     let event =
@@ -317,12 +326,16 @@ fn confirmation_disabled_is_denied_and_recorded() {
         &event,
     );
     assert!(out.status.success());
-    assert_eq!(value(&out)["decision"], "block");
+    assert!(value(&out)["decision"].is_null());
+    assert!(value(&out)["systemMessage"]
+        .as_str()
+        .unwrap()
+        .contains("warning continuation"));
     let records = value(&invoke(
         &["--history-file", text(&path), "history", "list"],
         "",
     ));
-    assert_eq!(records["records"][0]["decision"], "deny");
+    assert_eq!(records["records"][0]["decision"], "allow");
     assert_eq!(records["records"][0]["decision_source"], "unavailable");
     assert!(!records.to_string().contains("person@example.invalid"));
     let output = d.path().join("export.jsonl");
@@ -358,7 +371,7 @@ fn ordinary_allow_does_not_write_history() {
 }
 
 #[test]
-fn generated_confirmation_configuration_has_sufficient_timeout() {
+fn generated_configuration_has_native_form_and_warning_guard() {
     let d = tempfile::tempdir().unwrap();
     let p = d.path().join("policy.yaml");
     invoke(&["init", "-o", text(&p)], "");
@@ -369,11 +382,15 @@ fn generated_confirmation_configuration_has_sufficient_timeout() {
     let config = value(&out);
     for event in ["PreToolUse", "UserPromptSubmit"] {
         let hook = &config["hooks"][event][0]["hooks"][0];
-        assert_eq!(hook["timeout"], 90);
+        assert_eq!(hook["timeout"], 5);
+        let native = &config["hooks"][event][0]["hooks"][1];
+        assert_eq!(native["type"], "mcp_tool");
+        assert_eq!(native["server"], "agent-dlp-lite");
+        assert_eq!(native["timeout"], 90);
         assert!(hook["command"]
             .as_str()
             .unwrap()
-            .contains("--interactive-confirmation"));
+            .contains("--native-companion"));
         assert!(hook["command"].as_str().unwrap().contains("--history-file"));
     }
 }

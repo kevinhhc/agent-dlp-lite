@@ -43,6 +43,10 @@ pub fn record(
     let mut value = serde_json::to_value(report).expect("report serialization");
     let object = value.as_object_mut().expect("report object");
     object.insert("record_version".into(), json!(1));
+    if let Some(id) = event.operation_id() {
+        object.insert("operation_id".into(), json!(id));
+    }
+    object.insert("human_feedback".into(), json!(source == "user"));
     object.insert("detector_version".into(), json!(env!("CARGO_PKG_VERSION")));
     object.insert(
         "policy_sha256".into(),
@@ -148,6 +152,18 @@ fn load(path: &Path) -> Result<VecDeque<Value>, String> {
 pub fn append(path: &Path, record: Value) -> Result<(), String> {
     locked(path, || {
         let mut records = load(path)?;
+        if let Some(id) = record.get("operation_id").and_then(Value::as_str) {
+            if let Some(index) = records
+                .iter()
+                .position(|r| r.get("operation_id").and_then(Value::as_str) == Some(id))
+            {
+                // A later-running baseline guard must never erase the MCP/user outcome.
+                if record.get("decision_source").and_then(Value::as_str) == Some("companion") {
+                    return Ok(());
+                }
+                records.remove(index);
+            }
+        }
         records.push_back(record);
         while records.len() > CAPACITY {
             records.pop_front();

@@ -47,24 +47,55 @@ pub fn configuration_with_history(
     history: &Path,
 ) -> Result<Value, String> {
     let command = format!(
-        "{} --policy {} --history-file {} hook --agent {} --interactive-confirmation{}",
+        "{} --policy {} --history-file {} hook --agent {}{}{}",
         quote_path(executable)?,
         quote_path(policy)?,
         quote_path(history)?,
         agent.name(),
+        if matches!(agent, Agent::Codex) {
+            " --native-companion"
+        } else {
+            ""
+        },
         MARKER
     );
+    let mut pre = vec![json!({"type":"command","command":command,"timeout":5})];
+    let mut prompt = pre.clone();
+    if matches!(agent, Agent::Codex) {
+        for (hooks, event, fields) in [
+            (
+                &mut pre,
+                "PreToolUse",
+                json!({"tool_name":"${tool_name}","tool_input":"${tool_input}","tool_use_id":"${tool_use_id}"}),
+            ),
+            (
+                &mut prompt,
+                "UserPromptSubmit",
+                json!({"prompt":"${prompt}"}),
+            ),
+        ] {
+            let mut input = json!({"hook_event_name":event,"session_id":"${session_id}","turn_id":"${turn_id}","cwd":"${cwd}"});
+            input
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            hooks.push(json!({"type":"mcp_tool","server":crate::mcp::server_name(),"tool":"inspect","input":{"event":input},"timeout":90,"statusMessage":"Agent DLP Lite: checking sensitive content"}));
+        }
+    }
     Ok(json!({"hooks": {
-        "PreToolUse": [{"matcher":"*", "hooks":[{"type":"command", "command":command, "timeout":90}]}],
-        "UserPromptSubmit": [{"hooks":[{"type":"command", "command":command, "timeout":90}]}]
+        "PreToolUse": [{"matcher":"*", "hooks":pre}],
+        "UserPromptSubmit": [{"hooks":prompt}]
     }}))
 }
 
 fn owned(h: &Value) -> bool {
-    h.get("type").and_then(Value::as_str) == Some("command")
-        && h.get("command")
-            .and_then(Value::as_str)
-            .is_some_and(|c| c.ends_with(MARKER))
+    (h.get("type").and_then(Value::as_str) == Some("mcp_tool")
+        && h.get("server").and_then(Value::as_str) == Some(crate::mcp::server_name())
+        && h.get("tool").and_then(Value::as_str) == Some("inspect"))
+        || h.get("type").and_then(Value::as_str) == Some("command")
+            && h.get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|c| c.ends_with(MARKER))
 }
 
 pub fn remove(root: &mut Value) -> Result<usize, String> {

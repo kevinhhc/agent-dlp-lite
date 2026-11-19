@@ -8,10 +8,10 @@
 | --- | --- |
 | allow | 返回空 JSON，不提升宿主权限 |
 | warn | 返回脱敏 `systemMessage`，不阻断；不要求用户交互 |
-| confirm | 临时本地确认页；仅批准本次，超时/不可用拒绝；需要 v0.2 Hook 配置 |
+| confirm | Codex 原生 MCP 表单；仅批准本次；无 UI/无效/超时告警记录后继续，明确拒绝/取消仍阻断 |
 | deny | PreToolUse 返回 `hookSpecificOutput.permissionDecision=deny`；Prompt 返回 `decision=block` |
 
-PostToolUse 始终仅提示，报告保留策略 deny 结论但 `enforcement=observe_only`。不返回伪装的事后阻断。主程序接受 confirm（ask 别名），但使用自己的本地确认页，不输出宿主原生 ask；详见 [确认与记录](confirmation-history.md)。
+PostToolUse 始终仅提示，报告保留策略 deny 结论但 `enforcement=observe_only`。不返回伪装的事后阻断。主程序接受 confirm（ask 别名），但v0.2.2 默认使用 MCP 表单，不输出宿主原生 ask；详见 [确认与记录](confirmation-history.md)。
 
 `inspection_failure` 控制已识别脚本检查不完整时的动作，默认 deny。可改 warn，但会让未知内容继续执行；它不是输入/策略解析错误的 fail-open 开关。此类错误始终在 hook 模式退出 2，宿主是否尊重退出码需验收。
 
@@ -25,4 +25,4 @@ PostToolUse 始终仅提示，报告保留策略 deny 结论但 `enforcement=obs
 | 脚本数 | 16 | 1–32 |
 | 引用深度 | 4 | 1–8 |
 
-所有读取受字节限制，正则受编译大小限制；不启动扫描子进程、不运行脚本。v0.2 生成的 90 秒宿主超时（本地确认等待最多 60 秒）是最后保护，不能替代延迟基准，也不构成强制阻断保证。
+所有读取受字节限制，正则受编译大小限制；不启动扫描子进程、不运行脚本。v0.2.2 命令守卫设为 5 秒、MCP 处理器设为 90 秒，原生确认内部等待最多 60 秒后告警继续；这些资源上限，不能替代延迟基准，也不构成强制阻断保证。

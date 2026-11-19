@@ -16,11 +16,13 @@
 
 `compatibility` 展示本工具协议范围，不自动探测或认证桌面端。`self-test` 验证内置默认引擎，不替代自定义策略测试和实际宿主验收。
 
-## v0.2 确认与记录
+## v0.2.2 原生确认排查
 
-- 没有确认页：检查规则是否为 confirm，二进制是否为 v0.2.0，以及是否已重新 install。旧 Hook 不含 --interactive-confirmation，会直接拒绝。
-- 浏览器不可用或无图形桌面：本次操作拒绝；Linux 检查 xdg-open 和默认浏览器。不会自动降级为放行。
-- 超时：本工具等待 60 秒；Hook 配置为 90 秒。关页不会立即通知本工具，而是在超时后拒绝。宿主若提前中断 Hook，须单独验证宿主行为。
-- 已点允许仍拒绝：检查是否另有 deny 规则、策略或脚本在等待期间变化，或历史路径不可写。
-- 历史写入失败：检查可信路径权限、磁盘空间、文件是否损坏、末端符号链接及并发锁；错误不会静默清空历史。保留受限的诊断副本后再人工修复，副本不参与自动保留。
-- 看不到历史：用与生成 Hook 相同的 --history-file；scan、无告警放行及 PostToolUse 不写历史。history list/export 本身也不制造告警决定。
+- 没有原生表单：确认客户端支持 mcp_tool Hook 和 form elicitation；重新 install 时传 --mcp-config，重启并信任 Hook，检查 agent-dlp-lite MCP 已连接。缺少能力时显示告警、记录、继续。
+- 仍打开浏览器：旧配置仍含 --interactive-confirmation；用新安装命令替换管理项。
+- 60 秒无回复：原生默认告警继续，并记录 timeout；用户取消/拒绝仍阻断。浏览器兼容模式保持超时拒绝，不要混淆。
+- 安装要求 MCP 路径：Codex 需要 --settings hooks.json 和 --mcp-config config.toml；WorkBuddy 不需要 MCP 路径。
+- 看不到记录：查看与安装相同的 --history-file；无告警、scan、PostToolUse 不写入。
+- companion 记录：表示独立告警守卫已记录但尚未得到原生最终结果；不是人工批准。缺少宿主 ID 时可有重复条目，上限仍为 100。
+- 历史失败：检查权限、空间、文件损坏和符号链接；当前告警返回阻断，不能静默清空历史。
+- macOS 无法验证开发者：先核对来源和 SHA-256，再在系统设置的隐私与安全性中选择仍要打开；候选文件尚未签名/公证。

@@ -26,12 +26,15 @@ This distribution uses Rust crates under their own licenses. The project license
 - [digest 0.10.7](third-party-licenses/digest-0.10.7.txt) — MIT OR Apache-2.0
 - [encoding_rs 0.8.44](third-party-licenses/encoding_rs-0.8.44.txt) — (Apache-2.0 OR MIT) AND BSD-3-Clause
 - [encoding_rs_io 0.1.8](third-party-licenses/encoding_rs_io-0.1.8.txt) — MIT OR Apache-2.0
+- [equivalent 1.0.3](third-party-licenses/equivalent-1.0.3.txt) — Apache-2.0 OR MIT
 - [errno 0.3.15](third-party-licenses/errno-0.3.15.txt) — MIT OR Apache-2.0
 - [fastrand 2.5.0](third-party-licenses/fastrand-2.5.0.txt) — Apache-2.0 OR MIT
 - [generic-array 0.14.7](third-party-licenses/generic-array-0.14.7.txt) — MIT
 - [getrandom 0.4.3](third-party-licenses/getrandom-0.4.3.txt) — MIT OR Apache-2.0
 - [granit-parser 2.2.0](third-party-licenses/granit-parser-2.2.0.txt) — MIT OR Apache-2.0
+- [hashbrown 0.17.1](third-party-licenses/hashbrown-0.17.1.txt) — MIT OR Apache-2.0
 - [heck 0.5.0](third-party-licenses/heck-0.5.0.txt) — MIT OR Apache-2.0
+- [indexmap 2.14.2](third-party-licenses/indexmap-2.14.2.txt) — Apache-2.0 OR MIT
 - [is_terminal_polyfill 1.70.2](third-party-licenses/is_terminal_polyfill-1.70.2.txt) — MIT OR Apache-2.0
 - [itoa 1.0.19](third-party-licenses/itoa-1.0.19.txt) — MIT OR Apache-2.0
 - [libc 0.2.191](third-party-licenses/libc-0.2.191.txt) — MIT OR Apache-2.0
@@ -63,6 +66,10 @@ This distribution uses Rust crates under their own licenses. The project license
 - [strsim 0.11.1](third-party-licenses/strsim-0.11.1.txt) — MIT
 - [syn 3.0.10](third-party-licenses/syn-3.0.10.txt) — MIT OR Apache-2.0
 - [tempfile 3.27.0](third-party-licenses/tempfile-3.27.0.txt) — MIT OR Apache-2.0
+- [toml_datetime 1.1.3+spec-1.1.0](third-party-licenses/toml_datetime-1.1.3+spec-1.1.0.txt) — MIT OR Apache-2.0
+- [toml_edit 0.25.19+spec-1.1.0](third-party-licenses/toml_edit-0.25.19+spec-1.1.0.txt) — MIT OR Apache-2.0
+- [toml_parser 1.1.5+spec-1.1.0](third-party-licenses/toml_parser-1.1.5+spec-1.1.0.txt) — MIT OR Apache-2.0
+- [toml_writer 1.2.0+spec-1.1.0](third-party-licenses/toml_writer-1.2.0+spec-1.1.0.txt) — MIT OR Apache-2.0
 - [typenum 1.20.1](third-party-licenses/typenum-1.20.1.txt) — MIT OR Apache-2.0
 - [unicode-ident 1.0.27](third-party-licenses/unicode-ident-1.0.27.txt) — (MIT OR Apache-2.0) AND Unicode-3.0
 - [unicode-width 0.2.3](third-party-licenses/unicode-width-0.2.3.txt) — MIT OR Apache-2.0
@@ -70,4 +77,5 @@ This distribution uses Rust crates under their own licenses. The project license
 - [version_check 0.9.5](third-party-licenses/version_check-0.9.5.txt) — MIT/Apache-2.0
 - [windows-link 0.2.1](third-party-licenses/windows-link-0.2.1.txt) — MIT OR Apache-2.0
 - [windows-sys 0.61.2](third-party-licenses/windows-sys-0.61.2.txt) — MIT OR Apache-2.0
+- [winnow 1.0.5](third-party-licenses/winnow-1.0.5.txt) — MIT
 - [zmij 1.0.23](third-party-licenses/zmij-1.0.23.txt) — MIT

@@ -3,6 +3,7 @@ use agent_dlp_lite::{
     event::Event,
     history,
     integration::{self, Agent},
+    mcp,
     policy::{Action, CompiledPack, DEFAULT_POLICY},
     storage,
 };
@@ -46,6 +47,9 @@ enum Command {
         /// Enable the local browser confirmation UI (requires a 90-second host hook timeout).
         #[arg(long)]
         interactive_confirmation: bool,
+        /// Independent warning journal paired with the native MCP hook.
+        #[arg(long)]
+        native_companion: bool,
         #[arg(long, hide = true)]
         managed_by: Option<String>,
     },
@@ -66,6 +70,9 @@ enum Command {
     Integration {
         #[arg(long, value_enum)]
         agent: Agent,
+        /// Print the local MCP TOML configuration instead of hooks JSON.
+        #[arg(long)]
+        mcp: bool,
     },
     /// Merge hooks, backing up existing settings first.
     Install {
@@ -73,11 +80,16 @@ enum Command {
         agent: Agent,
         #[arg(long)]
         settings: PathBuf,
+        /// Codex config.toml to register the native MCP server.
+        #[arg(long, required_if_eq("agent", "codex"))]
+        mcp_config: Option<PathBuf>,
     },
     /// Remove only this tool's marked handlers.
     Uninstall {
         #[arg(long)]
         settings: PathBuf,
+        #[arg(long)]
+        mcp_config: Option<PathBuf>,
     },
     /// Count registered handlers; does not prove runtime protection.
     Status {
@@ -89,6 +101,13 @@ enum Command {
     History {
         #[command(subcommand)]
         command: HistoryCommand,
+    },
+    /// Serve the local MCP inspector over stdio. No language runtime is required.
+    Mcp {
+        #[arg(long, default_value_t = 60, value_parser = clap::value_parser!(u64).range(1..=120))]
+        confirmation_timeout: u64,
+        #[arg(long, hide = true)]
+        managed_by: Option<String>,
     },
     /// Offline synthetic detector check.
     SelfTest,
@@ -187,6 +206,7 @@ fn run(cli: &Cli) -> Result<u8, String> {
             audit,
             managed_by,
             interactive_confirmation,
+            native_companion,
         } => {
             let _ = agent; // Deliberately use only the shared protocol subset.
             if managed_by.as_deref().is_some_and(|s| s != "agent-dlp-lite") {
@@ -200,6 +220,7 @@ fn run(cli: &Cli) -> Result<u8, String> {
                 cli.policy.as_deref(),
                 &path,
                 *interactive_confirmation,
+                *native_companion,
             )?;
             Ok(0) // Valid JSON decisions use 0; failures use 2.
         }
@@ -242,8 +263,20 @@ fn run(cli: &Cli) -> Result<u8, String> {
             }
             Ok(0)
         }
-        Command::Integration { agent } => {
+        Command::Integration {
+            agent,
+            mcp: show_mcp,
+        } => {
             let p = pinned_policy(cli)?;
+            if *show_mcp {
+                let table = mcp::config(
+                    &std::env::current_exe().map_err(|_| "cannot locate executable")?,
+                    &p,
+                    &history_path(cli)?,
+                )?;
+                print!("{}", mcp::merge_config("", table)?);
+                return Ok(0);
+            }
             print_json(&integration::configuration_with_history(
                 *agent,
                 &std::env::current_exe().map_err(|_| "cannot locate executable")?,
@@ -255,6 +288,7 @@ fn run(cli: &Cli) -> Result<u8, String> {
         Command::Install {
             agent,
             settings: path,
+            mcp_config,
         } => {
             let p = pinned_policy(cli)?;
             let config = integration::configuration_with_history(
@@ -265,10 +299,44 @@ fn run(cli: &Cli) -> Result<u8, String> {
             )?;
             let mut root = settings(path)?;
             integration::merge(&mut root, config)?;
+            if let Some(mcp_path) = mcp_config {
+                if mcp_path == path {
+                    return Err("hook and MCP settings must be different files".into());
+                }
+                let text = if mcp_path.exists() {
+                    storage::read_text(mcp_path, 1024 * 1024)?
+                } else {
+                    String::new()
+                };
+                let table = mcp::config(
+                    &std::env::current_exe().map_err(|_| "cannot locate executable")?,
+                    &p,
+                    &history_path(cli)?,
+                )?;
+                let merged = mcp::merge_config(&text, table)?;
+                // Both configurations were validated before writing either file.
+                if let Some(parent) = mcp_path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|_| "cannot create MCP settings directory")?;
+                }
+                let backup = storage::replace_with_backup(mcp_path, &merged)?;
+                eprintln!(
+                    "Agent DLP Lite: MCP config updated; backup: {}",
+                    backup
+                        .as_ref()
+                        .map_or_else(|| "none".into(), |p| p.display().to_string())
+                );
+            }
             save_settings(path, &root)?;
             Ok(0)
         }
-        Command::Uninstall { settings: path } => {
+        Command::Uninstall {
+            settings: path,
+            mcp_config,
+        } => {
+            if let Some(mcp_path) = mcp_config {
+                mcp::remove_config(mcp_path)?;
+            }
             if !path.exists() {
                 print_json(&json!({"updated":false,"removed":0}))?;
                 return Ok(0);
@@ -290,7 +358,7 @@ fn run(cli: &Cli) -> Result<u8, String> {
         }
         Command::Compatibility => {
             print_json(
-                &json!({"agents":["codex","workbuddy"],"events":["PreToolUse","UserPromptSubmit","PostToolUse"],"protocol_tests":true,"desktop_e2e_verified":false,"post_tool_use":"observe_only"}),
+                &json!({"agents":["codex","workbuddy"],"events":["PreToolUse","UserPromptSubmit","PostToolUse"],"protocol_tests":true,"desktop_e2e_verified":false,"native_form":"codex MCP elicitation; client support required","workbuddy":"warning fallback; native forms unverified","post_tool_use":"observe_only"}),
             )?;
             Ok(0)
         }
@@ -310,6 +378,20 @@ fn run(cli: &Cli) -> Result<u8, String> {
                     print_json(&json!({"exported":records.len()}))?;
                 }
             }
+            Ok(0)
+        }
+        Command::Mcp {
+            confirmation_timeout,
+            managed_by,
+        } => {
+            if managed_by.as_deref().is_some_and(|s| s != "agent-dlp-lite") {
+                return Err("invalid ownership marker".into());
+            }
+            mcp::serve(
+                cli.policy.as_deref(),
+                &history_path(cli)?,
+                std::time::Duration::from_secs(*confirmation_timeout),
+            )?;
             Ok(0)
         }
         Command::SelfTest => {
@@ -350,6 +432,7 @@ fn handle_hook(
     policy_path: Option<&Path>,
     history_path: &Path,
     interactive: bool,
+    native_companion: bool,
 ) -> Result<(), String> {
     let mut report = engine::evaluate(event, policy);
     if report.action == Action::Allow || event.hook_event_name == "PostToolUse" {
@@ -358,21 +441,31 @@ fn handle_hook(
     let mut source = "policy";
     let mut reason = String::new();
     if report.action == Action::Confirm {
-        let answer = confirmation::decide(
-            event,
-            policy,
-            policy_path,
-            &report.reason(),
-            interactive,
-            confirmation::request,
-        );
-        report.action = if answer.allowed {
-            Action::Allow
+        if !interactive {
+            report.action = Action::Warn;
+            source = if native_companion {
+                "companion"
+            } else {
+                "unavailable"
+            };
+            reason = if native_companion { "Native confirmation pending or unavailable; warning continuation is not human approval" } else { "No interactive confirmation configured; warning continuation" }.into();
         } else {
-            Action::Deny
-        };
-        source = answer.source;
-        reason = answer.reason;
+            let answer = confirmation::decide(
+                event,
+                policy,
+                policy_path,
+                &report.reason(),
+                interactive,
+                confirmation::request,
+            );
+            report.action = if answer.allowed {
+                Action::Allow
+            } else {
+                Action::Deny
+            };
+            source = answer.source;
+            reason = answer.reason;
+        }
     }
     let record = history::record(event, policy, &report, source, &reason);
     let mut output;
@@ -383,6 +476,14 @@ fn handle_hook(
             json!("Agent DLP Lite: alert history unavailable; operation denied");
     } else {
         output = report.hook_output();
+        if !reason.is_empty() && report.action == Action::Warn {
+            output["systemMessage"] = json!(format!(
+                "{}; {}",
+                report.reason(),
+                history::redacted(&reason, policy, 256)
+            ));
+        }
+
         if source != "policy" && report.action == Action::Deny {
             output["systemMessage"] = json!(format!(
                 "Agent DLP Lite: confirmation {source}; {}",
